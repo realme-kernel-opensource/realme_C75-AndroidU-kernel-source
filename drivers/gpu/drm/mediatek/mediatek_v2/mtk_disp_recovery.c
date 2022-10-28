@@ -187,13 +187,15 @@ int _mtk_esd_check_read(struct drm_crtc *crtc)
 	CRTC_MMP_MARK(drm_crtc_index(crtc), esd_check, 2, 1);
 
 	if (mtk_dsi_is_cmd_mode(output_comp)) {
+		cmdq_pkt_wfe(cmdq_handle,
+				     mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
+
 		if (mtk_crtc_with_sub_path(crtc, mtk_crtc->ddp_mode))
 			mtk_crtc_wait_frame_done(mtk_crtc, cmdq_handle,
-						 DDP_SECOND_PATH, 0);
+						 DDP_SECOND_PATH, 1);
 		else
 			mtk_crtc_wait_frame_done(mtk_crtc, cmdq_handle,
-						 DDP_FIRST_PATH, 0);
-
+						 DDP_FIRST_PATH, 1);
 		cmdq_pkt_clear_event(cmdq_handle,
 				     mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
 
@@ -202,6 +204,8 @@ int _mtk_esd_check_read(struct drm_crtc *crtc)
 
 		cmdq_pkt_set_event(cmdq_handle,
 				   mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
+		cmdq_pkt_set_event(cmdq_handle,
+					mtk_crtc->gce_obj.event[EVENT_STREAM_EOF]);
 	} else { /* VDO mode */
 		if (mtk_crtc_with_sub_path(crtc, mtk_crtc->ddp_mode))
 			mtk_crtc_wait_frame_done(mtk_crtc, cmdq_handle,
