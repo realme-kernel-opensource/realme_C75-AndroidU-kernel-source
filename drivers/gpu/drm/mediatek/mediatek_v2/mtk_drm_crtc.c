@@ -656,7 +656,7 @@ mtk_drm_crtc_duplicate_state(struct drm_crtc *crtc)
 		state->rsz_dst_roi = old_state->rsz_dst_roi;
 		state->prop_val[CRTC_PROP_DOZE_ACTIVE] =
 			old_state->prop_val[CRTC_PROP_DOZE_ACTIVE];
-		if (mtk_crtc->res_switch)
+		if (mtk_crtc->res_switch || mtk_crtc->skip_unnecessary_switch)
 			state->prop_val[CRTC_PROP_DISP_MODE_IDX] =
 				old_state->prop_val[CRTC_PROP_DISP_MODE_IDX];
 	}
@@ -3272,6 +3272,10 @@ void mtk_drm_crtc_mode_check(struct drm_crtc *crtc,
 	old_mtk_state = to_mtk_crtc_state(old_state);
 	new_mtk_state = to_mtk_crtc_state(new_state);
 
+	DDPDBG("%s++ old_state mode_idx: %u,new_state mode_idx %u\n", __func__,
+		old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX],
+		new_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX]);
+
 	if (old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX] ==
 		new_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX])
 		return;
@@ -3286,7 +3290,7 @@ void mtk_drm_crtc_mode_check(struct drm_crtc *crtc,
 		old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX] =
 			new_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX];
 	}
-	if (mtk_crtc->res_switch) {
+	if (mtk_crtc->res_switch || mtk_crtc->skip_unnecessary_switch) {
 		//workaround for hwc
 		if (mtk_crtc->mode_idx
 			== old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX]) {
