@@ -1351,6 +1351,7 @@ static void msdc_request_timeout(struct work_struct *work)
 			dev_err(host->dev, "%s: abort data: cmd%d; %d blocks\n",
 					__func__, host->mrq->cmd->opcode,
 					host->data->blocks);
+			msdc_dump_info(NULL, 0, NULL, host);
 			msdc_data_xfer_done(host, MSDC_INT_DATTMO, host->mrq,
 					host->data);
 		}
@@ -1482,6 +1483,7 @@ static void msdc_init_hw(struct msdc_host *host)
 	u32 val;
 #if !IS_ENABLED(CONFIG_MMC_AUTOK)
 	u32 tune_reg = host->dev_comp->pad_tune_reg;
+	struct mmc_host *mmc = mmc_from_priv(host);
 #endif
 
 	if (host->reset) {
@@ -1526,6 +1528,8 @@ static void msdc_init_hw(struct msdc_host *host)
 	writel(0x403c0046, host->base + MSDC_PATCH_BIT);
 	sdr_set_field(host->base + MSDC_PATCH_BIT, MSDC_CKGEN_MSDC_DLY_SEL, 1);
 	writel(0xfffe4089, host->base + MSDC_PATCH_BIT1);
+	if (!(mmc->caps2 & MMC_CAP2_NO_SDIO))
+		sdr_set_bits(host->base + MSDC_PATCH_BIT1, MSDC_PB1_ENABLE_SINGLE_BURST);
 	sdr_set_bits(host->base + EMMC50_CFG0, EMMC50_CFG_CFCSTS_SEL);
 
 	if (host->dev_comp->stop_clk_fix) {

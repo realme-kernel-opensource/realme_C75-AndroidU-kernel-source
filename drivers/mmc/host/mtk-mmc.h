@@ -287,6 +287,7 @@
 #define MSDC_PB1_BUSY_CHECK_SEL   (0x1 << 7)	/* RW */
 #define MSDC_PATCH_BIT1_STOP_DLY  (0xf << 8)	/* RW */
 #define MSDC_PB1_DDR_CMD_FIX_SEL  (0x1 << 14)	/* RW */
+#define MSDC_PB1_ENABLE_SINGLE_BURST (0x1 << 16)	/* RW */
 
 /* MSDC_PATCH_BIT2 mask */
 #define MSDC_PATCH_BIT2_CFGRESP   (0x1 << 15)	/* RW */

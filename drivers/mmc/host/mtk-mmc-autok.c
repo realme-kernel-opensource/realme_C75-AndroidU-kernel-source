@@ -4651,6 +4651,7 @@ void msdc_init_tune_setting(struct msdc_host *host)
 {
 	u32 val;
 	u32 tune_reg = host->dev_comp->pad_tune_reg;
+	struct mmc_host *mmc = mmc_from_priv(host);
 
 	/* FIX ME: check if always convered by autok */
 	sdr_set_field(host->base + tune_reg, MSDC_PAD_TUNE_CLKTDLY,
@@ -4675,6 +4676,8 @@ void msdc_init_tune_setting(struct msdc_host *host)
 
 	writel(MSDC_PB0_DEFAULT_VAL, host->base + MSDC_PATCH_BIT);
 	writel(MSDC_PB1_DEFAULT_VAL, host->base + MSDC_PATCH_BIT1);
+	if (!(mmc->caps2 & MMC_CAP2_NO_SDIO))
+		sdr_set_bits(host->base + MSDC_PATCH_BIT1, MSDC_PB1_ENABLE_SINGLE_BURST);
 
 	/* Fix HS400 mode */
 	sdr_clr_bits(host->base + EMMC50_CFG0, EMMC50_CFG_TXSKEW_SEL);
