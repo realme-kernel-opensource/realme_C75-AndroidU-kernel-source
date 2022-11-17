@@ -1240,7 +1240,7 @@ void DpEngine_COLORonConfig(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 	unsigned char h_series[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-	int id = index_of_color(comp->id);
+	int id = 0;
 	struct mtk_disp_color *color = comp_to_color(comp);
 	struct DISP_PQ_PARAM *pq_param_p = &g_Color_Param[id];
 	int i, j, reg_index;
@@ -1681,7 +1681,7 @@ static void color_write_hw_reg(struct mtk_ddp_comp *comp,
 	unsigned char h_series[20] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 		, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	unsigned int u4Temp = 0;
-	int id = index_of_color(comp->id);
+	int id = 0;
 	struct mtk_disp_color *color = comp_to_color(comp);
 	int i, j, reg_index;
 	int wide_gamut_en = 0;

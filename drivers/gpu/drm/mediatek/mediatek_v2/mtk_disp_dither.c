@@ -382,7 +382,7 @@ static void mtk_dither_config(struct mtk_ddp_comp *comp,
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + DISP_REG_DITHER_CFG,
 		enable << 1 |
-		g_dither_relay_value[index_of_dither(comp->id)], 0x3);
+		g_dither_relay_value[0], 0x3);
 
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + DISP_REG_DITHER_SIZE,

@@ -649,6 +649,14 @@ int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 
 				return -1;
 			}
+		} else {
+			struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
+			struct drm_crtc *crtc = &mtk_crtc->base;
+			struct mtk_drm_private *priv = crtc->dev->dev_private;
+			struct mtk_ddp_comp *comp_c3d1 = priv->ddp_comp[DDP_COMPONENT_C3D1];
+
+			disp_c3d_config_sram(comp_c3d1, &c3d1_sram_pkt);
+			C3DFLOW_LOG("%s: sing pipe config comp_c3d1 pkt\n", __func__);
 		}
 	} else {
 		DDPINFO("%s(line: %d): skip write_3dlut(mtk_crtc:%d)\n",
@@ -711,7 +719,7 @@ static int disp_c3d_set_1dlut(struct mtk_ddp_comp *comp,
 	if (lock)
 		mutex_lock(&g_c3d_global_lock);
 
-	lut1d = &g_c3d_lut1d[id][0];
+	lut1d = &g_c3d_lut1d[0][0];
 	if (lut1d == NULL) {
 		pr_notice("%s: table [%d] not initialized, use default config\n", __func__, id);
 		ret = -EFAULT;
@@ -931,7 +939,7 @@ static void mtk_disp_c3d_start(struct mtk_ddp_comp *comp, struct cmdq_pkt *handl
 	C3DFLOW_LOG("line: %d\n", __LINE__);
 	cmdq_pkt_write(handle, comp->cmdq_base, comp->regs_pa + C3D_EN, 0x1, ~0);
 
-	if (atomic_read(&g_c3d_force_relay[index_of_c3d(comp->id)]) == 1) {
+	if (atomic_read(&g_c3d_force_relay[0]) == 1) {
 		// Set reply mode
 		DDPINFO("g_c3d_force_relay\n");
 		cmdq_pkt_write(handle, comp->cmdq_base,

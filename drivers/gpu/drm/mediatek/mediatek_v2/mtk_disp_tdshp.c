@@ -52,7 +52,7 @@ static int mtk_disp_tdshp_write_reg(struct mtk_ddp_comp *comp,
 	struct DISP_TDSHP_REG *disp_tdshp_regs;
 
 	int ret = 0;
-	int id = index_of_tdshp(comp->id);
+	int id = 0;
 
 	if (lock)
 		mutex_lock(&g_tdshp_global_lock);

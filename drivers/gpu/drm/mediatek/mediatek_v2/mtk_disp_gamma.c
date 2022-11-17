@@ -169,7 +169,7 @@ static int mtk_gamma_write_lut_reg(struct mtk_ddp_comp *comp,
 	struct DISP_GAMMA_LUT_T *gamma_lut;
 	int i;
 	int ret = 0;
-	int id = index_of_gamma(comp->id);
+	int id = 0;
 
 	if (lock)
 		mutex_lock(&g_gamma_global_lock);
@@ -234,7 +234,7 @@ static int mtk_gamma_write_12bit_lut_reg(struct mtk_ddp_comp *comp,
 	struct DISP_GAMMA_12BIT_LUT_T *gamma_lut;
 	int i, j, block_num;
 	int ret = 0;
-	int id = index_of_gamma(comp->id);
+	int id = 0;
 	unsigned int table_config_sel, table_out_sel;
 
 	if (lock)

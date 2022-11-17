@@ -320,9 +320,13 @@ static int disp_ccorr_write_coef_reg(struct mtk_ddp_comp *comp,
 	if (lock)
 		mutex_lock(&g_ccorr_global_lock);
 
-	ccorr = g_disp_ccorr_coef[id];
 	DDPINFO("%s:ccorr id:%d,aosp ccorr:%d,nonlinear:%d\n", __func__, id,
 		disp_aosp_ccorr, g_disp_ccorr_without_gamma);
+	if (id == 2)
+		id = 0;
+	if (id == 3)
+		id = 1;
+	ccorr = g_disp_ccorr_coef[id];
 	if (ccorr == NULL) {
 		DDPINFO("%s: [%d] is not initialized\n", __func__, id);
 		ret = -EFAULT;
@@ -403,7 +407,7 @@ static int disp_ccorr_write_coef_reg(struct mtk_ddp_comp *comp,
 	} else {
 		/* use CMDQ to write */
 
-		cfg_val = 0x2 | g_ccorr_relay_value[index_of_ccorr(comp->id)] |
+		cfg_val = 0x2 | g_ccorr_relay_value[id] |
 				(g_disp_ccorr_without_gamma << 2 |
 				(g_ccorr_8bit_switch[id] << 10));
 
@@ -1339,10 +1343,14 @@ static void ddp_ccorr_restore(struct mtk_ddp_comp *comp)
 {
 	unsigned int index = index_of_ccorr(comp->id);
 
-	writel(g_ccorr_backup[index].REG_CCORR_CFG,
-			comp->regs + DISP_REG_CCORR_CFG);
 	writel(g_ccorr_backup[index].REG_CCORR_INTEN,
 			comp->regs + DISP_REG_CCORR_INTEN);
+	if (index == 2)
+		index = 0;
+	if (index == 3)
+		index = 1;
+	writel(g_ccorr_backup[index].REG_CCORR_CFG,
+			comp->regs + DISP_REG_CCORR_CFG);
 }
 
 static void mtk_ccorr_prepare(struct mtk_ddp_comp *comp)
