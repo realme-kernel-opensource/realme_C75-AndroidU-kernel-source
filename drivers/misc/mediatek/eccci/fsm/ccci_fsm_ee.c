@@ -55,6 +55,7 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 	ee_ctl->ops->dump_ee_info(ee_ctl, MDEE_DUMP_LEVEL_BOOT_FAIL, 0);
 }
 
+extern void mt_tracker_dump(void);
 void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 {
 	unsigned long flags;
@@ -215,6 +216,7 @@ _dump_done:
 		}
 		CCCI_ERROR_LOG(md_id, FSM,
 			"MD exception stage 2:end\n");
+		mt_tracker_dump();
 	}
 }
 

@@ -11,6 +11,7 @@
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
+#include <tracker.h>
 
 static unsigned int gic_irq(struct irq_data *d)
 {
@@ -245,13 +246,71 @@ void mt_irq_dump_status(unsigned int irq)
 }
 EXPORT_SYMBOL(mt_irq_dump_status);
 
+void mt_tracker_dump(void)
+{
+	unsigned int i;
+	unsigned int reg_value;
+	unsigned int entry_valid;
+	unsigned int entry_secure;
+	unsigned int entry_id;
+	unsigned int entry_address;
+
+	pr_info("\n*************************** tracker log start ***************************\n");
+
+	/* check if we got infra tracker timeout */
+	if (readl(INFRA_TRACKER_CON) & (BUS_DBG_CON_TIMEOUT | DBG_SLV_CHECK)) {
+		pr_info("\n*************************** INFRA ***************************\n");
+		pr_info("infra tracker timeout (0x%08x)\n", readl(INFRA_TRACKER_CON));
+		for (i = 0; i < INFRA_ENTRY_NUM; i++) {
+			entry_address = readl(AR_TRACK_L(INFRA_TRACKER_CON, i));
+			reg_value = readl(BUS_DBG_AR_TRACK_LOG(INFRA_TRACKER_CON, i));
+			entry_valid = extract_n2mbits(reg_value, INFRA_VALID_S, INFRA_VALID_E);
+			entry_secure = extract_n2mbits(reg_value, INFRA_SECURE_S, INFRA_SECURE_E);
+			entry_id = extract_n2mbits(reg_value, INFRA_ID_S, INFRA_ID_E);
+			if (entry_valid == 1)
+				pr_info("read entry = %d, valid = 0x%x, non-secure = 0x%x,
+					id = 0x%x, address = 0x%x\n",
+					i, entry_valid, entry_secure, entry_id, entry_address);
+		}
+		for (i = 0; i < INFRA_ENTRY_NUM; i++) {
+			entry_address = readl(AW_TRACK_L(INFRA_TRACKER_CON, i));
+			reg_value = readl(BUS_DBG_AW_TRACK_LOG(INFRA_TRACKER_CON, i));
+			entry_valid = extract_n2mbits(reg_value, INFRA_VALID_S, INFRA_VALID_E);
+			entry_secure = extract_n2mbits(reg_value, INFRA_SECURE_S, INFRA_SECURE_E);
+			entry_id = extract_n2mbits(reg_value, INFRA_ID_S, INFRA_ID_E);
+			if (entry_valid == 1)
+				pr_info("write entry = %d, valid = 0x%x, non-secure = 0x%x,
+					id = 0x%x, address = 0x%x\n",
+					i, entry_valid, entry_secure, entry_id, entry_address);
+		}
+	}
+
+	pr_info("\n*************************** tracker log end ***************************\n");
+}
+EXPORT_SYMBOL(mt_tracker_dump);
+
+static void mt_tracker_init(void)
+{
+	infra_tracker_base = ioremap(INFRA_TRACKER_BASE, 0x1000);
+	if (!infra_tracker_base)
+		pr_err("infra_tracker_base ioremap failed!\n");
+}
+
+static void mt_tracker_exit(void)
+{
+	if (infra_tracker_base)
+		iounmap(infra_tracker_base);
+}
+
 static int __init irq_dbg_init(void)
 {
+	mt_tracker_init();
 	return 0;
 }
 
 static __exit void irq_dbg_exit(void)
 {
+	mt_tracker_exit();
 }
 
 module_init(irq_dbg_init);
