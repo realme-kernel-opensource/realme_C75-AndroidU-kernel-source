@@ -426,6 +426,16 @@ void disp_c3d_flip_sram(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 	const char *caller)
 {
 	u32 sram_apb = 0, sram_int = 0, sram_cfg;
+	unsigned int read_value = 0;
+
+	read_value = readl(comp->regs + C3D_SRAM_CFG);
+	sram_apb = (read_value >> 5) & 0x1;
+	sram_int = (read_value >> 6) & 0x1;
+
+	if ((sram_apb == sram_int) && (sram_int == 0)) {
+		pr_notice("%s: sram_apb == sram_int, skip flip!", __func__);
+		return;
+	}
 
 	if (atomic_cmpxchg(&g_c3d_force_sram_apb[index_of_c3d(comp->id)], 0, 1) == 0) {
 		sram_apb = 0;
@@ -594,6 +604,20 @@ int mtk_drm_ioctl_c3d_eventctl(struct drm_device *dev, void *data,
 	return ret;
 }
 
+static bool is_doze_active(void)
+{
+	struct drm_crtc *crtc;
+	struct mtk_crtc_state *mtk_state;
+
+	if (!default_comp)
+		return false;
+	crtc = &default_comp->mtk_crtc->base;
+	mtk_state = to_mtk_crtc_state(crtc->state);
+	if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
+		return true;
+	return false;
+}
+
 int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 			struct drm_file *file_priv)
 {
@@ -605,6 +629,11 @@ int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 
 	C3DAPI_LOG("line: %d\n", __LINE__);
+
+	if (is_doze_active()) {
+		pr_notice("%s, in doze state\n", __func__);
+		return 0;
+	}
 
 	memcpy(&c3dIocData, (struct DISP_C3D_LUT *)data,
 				sizeof(struct DISP_C3D_LUT));
@@ -655,7 +684,9 @@ int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 			struct mtk_drm_private *priv = crtc->dev->dev_private;
 			struct mtk_ddp_comp *comp_c3d1 = priv->ddp_comp[DDP_COMPONENT_C3D1];
 
+			mutex_lock(&c3d_lut_lock);
 			disp_c3d_config_sram(comp_c3d1, &c3d1_sram_pkt);
+			mutex_unlock(&c3d_lut_lock);
 			C3DFLOW_LOG("%s: sing pipe config comp_c3d1 pkt\n", __func__);
 		}
 	} else {

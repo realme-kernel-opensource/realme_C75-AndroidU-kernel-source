@@ -38,6 +38,7 @@ extern void mtk_color_regdump(void);
 extern void mtk_dither_regdump(void);
 extern void mtk_disp_tdshp_regdump(void);
 extern void mtk_dmdp_aal_regdump(void);
+extern void mtk_gamma_regdump(void);
 
 extern unsigned int m_new_pq_persist_property[32];
 extern unsigned int g_gamma_data_mode;

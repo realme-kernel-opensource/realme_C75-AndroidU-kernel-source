@@ -2978,6 +2978,8 @@ static void process_dbg_opt(const char *opt)
 			mtk_disp_tdshp_regdump();
 		if (dump_flag & 0x40)
 			mtk_dmdp_aal_regdump();
+		if (dump_flag & 0x80)
+			mtk_gamma_regdump();
 	} else if (strncmp(opt, "esd_check", 9) == 0) {
 		unsigned int esd_check_en = 0;
 		struct drm_crtc *crtc;
