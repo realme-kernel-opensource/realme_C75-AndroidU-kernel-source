@@ -268,8 +268,7 @@ void mt_tracker_dump(void)
 			entry_secure = extract_n2mbits(reg_value, INFRA_SECURE_S, INFRA_SECURE_E);
 			entry_id = extract_n2mbits(reg_value, INFRA_ID_S, INFRA_ID_E);
 			if (entry_valid == 1)
-				pr_info("read entry = %d, valid = 0x%x, non-secure = 0x%x,
-					id = 0x%x, address = 0x%x\n",
+				pr_info("read entry = %d, valid = 0x%x, non-secure = 0x%x, id = 0x%x, address = 0x%x\n",
 					i, entry_valid, entry_secure, entry_id, entry_address);
 		}
 		for (i = 0; i < INFRA_ENTRY_NUM; i++) {
@@ -279,8 +278,7 @@ void mt_tracker_dump(void)
 			entry_secure = extract_n2mbits(reg_value, INFRA_SECURE_S, INFRA_SECURE_E);
 			entry_id = extract_n2mbits(reg_value, INFRA_ID_S, INFRA_ID_E);
 			if (entry_valid == 1)
-				pr_info("write entry = %d, valid = 0x%x, non-secure = 0x%x,
-					id = 0x%x, address = 0x%x\n",
+				pr_info("write entry = %d, valid = 0x%x, non-secure = 0x%x, id = 0x%x, address = 0x%x\n",
 					i, entry_valid, entry_secure, entry_id, entry_address);
 		}
 	}
