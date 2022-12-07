@@ -105,6 +105,14 @@ static bool mtk_venc_is_vcu(void)
 	}
 	return false;
 }
+void mtk_venc_do_gettimeofday(struct timespec64 *tv)
+{
+	struct timespec64 now;
+
+	ktime_get_real_ts64(&now);
+	tv->tv_sec = now.tv_sec;
+	tv->tv_nsec = now.tv_nsec; // micro sec = ((long)(now.tv_nsec)/1000);
+}
 
 static void set_venc_vcp_data(struct mtk_vcodec_ctx *ctx, enum vcp_reserve_mem_id_t id)
 {
