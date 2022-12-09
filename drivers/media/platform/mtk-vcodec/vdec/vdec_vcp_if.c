@@ -163,7 +163,10 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len, bool is
 
 	obj.len = len;
 	ipi_size = ((sizeof(u32) * 2) + len + 3) /4;
-	if (!is_ack) {
+	inst->vcu.failure = 0;
+	inst->ctx->err_msg = 0;
+
+	if (!is_ack)
 		*msg_signaled = false;
 		if (!is_res)
 			inst->vcu.failure = 0;
@@ -184,6 +187,7 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len, bool is
 		inst->vcu.abort = 1;
 		if (inst->vcu.daemon_pid == get_vcp_generation())
 			trigger_vcp_halt(VCP_A_ID);
+		inst->ctx->err_msg = *(__u32 *)msg;
 		return -EIO;
 	}
 
@@ -202,6 +206,7 @@ wait_ack:
 			inst->vcu.abort = 1;
 			if (inst->vcu.daemon_pid == get_vcp_generation())
 				trigger_vcp_halt(VCP_A_ID);
+			inst->ctx->err_msg = *(__u32 *)msg;
 			return -EIO;
 		} else if (-ERESTARTSYS == ret) {
 			mtk_vcodec_err(inst, "wait vcp ipi %X ack ret %d RESTARTSYS retry! (%d)",

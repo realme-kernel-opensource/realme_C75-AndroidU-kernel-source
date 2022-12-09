@@ -148,6 +148,7 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 	obj.len = len;
 	ipi_size = ((sizeof(u32) * 2) + len + 3) /4;
 	inst->vcu_inst.failure = 0;
+	inst->ctx->err_msg = *(__u32 *)msg;
 
 	mtk_v4l2_debug(2, "id %d len %d msg 0x%x is_ack %d %d", obj.id, obj.len, *(u32 *)msg,
 		is_ack, inst->vcu_inst.signaled);
@@ -164,6 +165,7 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 		inst->vcu_inst.abort = 1;
 		if (inst->vcu_inst.daemon_pid == get_vcp_generation())
 			trigger_vcp_halt(VCP_A_ID);
+		inst->ctx->err_msg = *(__u32 *)msg;
 		return -EIO;
 	}
 	if (!is_ack) {
@@ -180,6 +182,7 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 			inst->vcu_inst.abort = 1;
 			if (inst->vcu_inst.daemon_pid == get_vcp_generation())
 				trigger_vcp_halt(VCP_A_ID);
+			inst->ctx->err_msg = *(__u32 *)msg;
 			return -EIO;
 		}
 	}
