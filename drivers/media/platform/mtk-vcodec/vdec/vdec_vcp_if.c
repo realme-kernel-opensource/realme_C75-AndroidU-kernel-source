@@ -794,6 +794,7 @@ static int vcp_vdec_notify_callback(struct notifier_block *this,
 	struct list_head *p, *q;
 	struct mtk_vcodec_ctx *ctx;
 	int timeout = 0;
+	struct vdec_inst *inst = NULL;
 
 	if (!(mtk_vcodec_vcp & (1 << MTK_INST_DECODER)))
 		return 0;
@@ -825,6 +826,11 @@ static int vcp_vdec_notify_callback(struct notifier_block *this,
 				ctx = list_entry(p, struct mtk_vcodec_ctx, list);
 				if (ctx != NULL && ctx->state != MTK_STATE_ABORT) {
 					ctx->state = MTK_STATE_ABORT;
+					inst = (struct vdec_inst *)(ctx->drv_handle);
+					if (inst != NULL) {
+						inst->vcu.failure = VDEC_IPI_MSG_STATUS_FAIL;
+						inst->vcu.abort = 1;
+					}
 					vdec_check_release_lock(ctx);
 					mtk_vdec_queue_error_event(ctx);
 				}
