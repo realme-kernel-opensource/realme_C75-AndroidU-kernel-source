@@ -1035,12 +1035,13 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 {
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
 	phys_addr_t dre3_pa = mtk_aal_dre3_pa(comp);
+	int width = init_regs->isdual ? init_regs->width / 2 : init_regs->width;
 	int dre_alg_mode = 1;
 
 	AALFLOW_LOG("start, bitShift: %d  compId%d\n", aal_data->data->bitShift, comp->id);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		dre3_pa + DISP_AAL_DRE_BLOCK_INFO_00,
-		(g_aal_size.width - 1) << (aal_data->data->bitShift), ~0);
+		(width - 1) << (aal_data->data->bitShift), ~0);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		dre3_pa + DISP_AAL_DRE_BLOCK_INFO_01,
 		(init_regs->dre_blk_y_num << 5) | init_regs->dre_blk_x_num,
@@ -1078,7 +1079,7 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 		init_regs->dre_blk_area_min, ~0);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		dre3_pa + DISP_AAL_DRE_BLOCK_INFO_07,
-		(g_aal_size.height - 1) << (aal_data->data->bitShift), ~0);
+		(init_regs->height - 1) << (aal_data->data->bitShift), ~0);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		dre3_pa + DISP_AAL_SRAM_CFG,
 		init_regs->hist_bin_type, 0x1);

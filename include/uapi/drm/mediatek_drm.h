@@ -1201,6 +1201,9 @@ struct DISP_AAL_INITREG {
 	int blk_cnt_y_end;
 	int last_tile_x_flag;
 	int last_tile_y_flag;
+	bool isdual;
+	int width;
+	int height;
 };
 
 enum rgbSeq {
