@@ -166,7 +166,7 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len, bool is
 	inst->vcu.failure = 0;
 	inst->ctx->err_msg = 0;
 
-	if (!is_ack)
+	if (!is_ack) {
 		*msg_signaled = false;
 		if (!is_res)
 			inst->vcu.failure = 0;
