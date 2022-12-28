@@ -140,9 +140,11 @@ static void mtk_vcodec_alive_checker_deinit(struct mtk_vcodec_dev *dev)
 	if ((mtk_vcodec_vcp & (1 << MTK_INST_DECODER)) && dev->type == MTK_INST_DECODER) {
 		if (list_empty(&dev->ctx_list) && dev->has_timer) {
 			del_timer_sync(&dev->vdec_active_checker);
-			flush_workqueue(dev->check_alive_workqueue);
 			dev->has_timer = false;
+			mutex_unlock(&dev->ctx_mutex);
+			flush_workqueue(dev->check_alive_workqueue);
 			mtk_v4l2_debug(0, "deinit vdec alive checker");
+			mutex_lock(&dev->ctx_mutex);
 		}
 	}
 #endif
@@ -157,12 +159,15 @@ void mtk_vcodec_alive_checker_suspend(struct mtk_vcodec_dev *dev)
 		return;
 	/* Only support vdec check alive now */
 	if ((mtk_vcodec_vcp & (1 << MTK_INST_DECODER)) && dev->type == MTK_INST_DECODER) {
+		mutex_lock(&dev->ctx_mutex);
 		if (!list_empty(&dev->ctx_list) && dev->has_timer) {
 			mtk_v4l2_debug(0, "suspend vdec alive checker...");
 			del_timer_sync(&dev->vdec_active_checker);
-			flush_workqueue(dev->check_alive_workqueue);
 			dev->has_timer = false;
-		}
+			mutex_unlock(&dev->ctx_mutex);
+			flush_workqueue(dev->check_alive_workqueue);
+		} else
+			mutex_unlock(&dev->ctx_mutex);
 	}
 #endif
 #endif
@@ -177,6 +182,7 @@ void mtk_vcodec_alive_checker_resume(struct mtk_vcodec_dev *dev)
 		return;
 	/* Only support vdec check alive now */
 	if ((mtk_vcodec_vcp & (1 << MTK_INST_DECODER)) && dev->type == MTK_INST_DECODER) {
+		mutex_lock(&dev->ctx_mutex);
 		if (!list_empty(&dev->ctx_list) && !dev->has_timer) {
 			mtk_v4l2_debug(0, "resume vdec alive checker...");
 			timer_setup(&dev->vdec_active_checker,
@@ -186,6 +192,7 @@ void mtk_vcodec_alive_checker_resume(struct mtk_vcodec_dev *dev)
 			add_timer(&dev->vdec_active_checker);
 			dev->has_timer = true;
 		}
+		mutex_unlock(&dev->ctx_mutex);
 	}
 #endif
 #endif
