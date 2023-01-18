@@ -2156,13 +2156,34 @@ void mraw_irq_handle_tg_grab_err(struct mtk_mraw_device *mraw_dev,
 	}
 }
 
-void mraw_irq_handle_dma_err(struct mtk_mraw_device *mraw_dev)
+void mraw_irq_handle_dma_err(struct mtk_mraw_device *mraw_dev,
+	int dequeued_frame_seq_no)
 {
+
+	struct mtk_cam_request_stream_data *s_data;
+	struct mtk_cam_ctx *ctx;
+
 	dev_info_ratelimited(mraw_dev->dev,
 		"IMGO:0x%x IMGBO:0x%x CPIO:0x%x\n",
 		readl_relaxed(mraw_dev->base + REG_MRAW_IMGO_ERR_STAT),
 		readl_relaxed(mraw_dev->base + REG_MRAW_IMGBO_ERR_STAT),
 		readl_relaxed(mraw_dev->base + REG_MRAW_CPIO_ERR_STAT));
+
+	ctx = mtk_cam_find_ctx(mraw_dev->cam, &mraw_dev->pipeline->subdev.entity);
+	if (!ctx) {
+		dev_info(mraw_dev->dev, "%s: cannot find ctx\n", __func__);
+		return;
+	}
+
+	s_data = mtk_cam_get_req_s_data(ctx,
+		mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, dequeued_frame_seq_no);
+	if (s_data) {
+		mtk_cam_debug_seninf_dump(s_data);
+	} else {
+		dev_info(mraw_dev->dev,
+			 "%s: req(%d) can't be found for seninf dump\n",
+			 __func__, dequeued_frame_seq_no);
+	}
 }
 
 void mraw_irq_handle_fbc_debug(struct mtk_mraw_device *mraw_dev)
@@ -2302,7 +2323,7 @@ static void mraw_handle_error(struct mtk_mraw_device *mraw_dev,
 
 	/* Show DMA errors in detail */
 	if (err_status & DMA_ST_MASK_MRAW_ERR)
-		mraw_irq_handle_dma_err(mraw_dev);
+		mraw_irq_handle_dma_err(mraw_dev, frame_idx_inner);
 	/* Show TG register for more error detail*/
 	if (err_status & MRAWCTL_TG_GBERR_ST)
 		mraw_irq_handle_tg_grab_err(mraw_dev, frame_idx_inner);

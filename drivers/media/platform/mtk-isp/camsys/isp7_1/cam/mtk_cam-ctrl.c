@@ -5429,6 +5429,7 @@ void mtk_cam_extisp_initial_sv_enque(struct mtk_cam_ctx *ctx)
 				iova, stream_data->frame_seq_no);
 		}
 	}
+	stream_data->state.estate = E_STATE_EXTISP_SV_OUTER;
 }
 void mtk_cam_extisp_sv_stream_delayed(struct mtk_cam_ctx *ctx,
 	struct mtk_camsv_device *camsv_dev, int seninf_padidx)
@@ -5586,6 +5587,8 @@ void mtk_cam_extisp_sv_frame_start(struct mtk_cam_ctx *ctx,
 			state_out = state_temp;
 			mtk_cam_set_timestamp(stream_data,
 						      time_boot, time_mono);
+			/* handle sv timestamp in stream_data */
+			mtk_cam_extisp_handle_sv_tstamp(ctx, stream_data, irq_info);
 		}
 		/* Find to-be-set element*/
 		if (state_temp->estate == E_STATE_EXTISP_SENSOR)
@@ -5651,10 +5654,12 @@ void mtk_cam_extisp_sv_frame_start(struct mtk_cam_ctx *ctx,
 		}
 		state_transition(state_sensor, E_STATE_EXTISP_SENSOR,
 				 E_STATE_EXTISP_SV_OUTER);
-		dev_info(cam->dev, "[%s-ENQ-SV] ctx:%d/req:%d state:0x%x\n", __func__,
-					ctx->stream_id, stream_data->frame_seq_no,
-					state_sensor->estate);
+		stream_data->state.sof_cnt_key = camsv_dev->tg_cnt;
+		dev_info(cam->dev, "[%s-ENQSV] ctx:%d/req:%d s:0x%x, cnt:%d/%d, key:%d\n", __func__,
+			ctx->stream_id, stream_data->frame_seq_no, state_sensor->estate,
+			camsv_dev->tg_cnt, camsv_dev->sof_count, stream_data->state.sof_cnt_key);
 	}
+	/* proc raw/yuv engine setting enque*/
 	if (state_out) {
 		req = mtk_cam_ctrl_state_get_req(state_out);
 		stream_data = mtk_cam_req_get_s_data(req, ctx->stream_id, 0);
@@ -5741,10 +5746,14 @@ int mtk_camsys_extisp_state_handle(struct mtk_raw_device *raw_dev,
 			if (state_temp->estate == E_STATE_EXTISP_INNER)
 				state_in = state_temp;
 			/* Find outer state element */
+			if (state_temp->estate == E_STATE_EXTISP_OUTER)
+				state_in = state_temp;
+
 			if (state_temp->estate == E_STATE_EXTISP_OUTER) {
 				state_out = state_temp;
 			}
-			if (state_temp->estate == E_STATE_EXTISP_SV_OUTER)
+			if (state_temp->estate == E_STATE_EXTISP_SV_OUTER &&
+				stream_data->state.sof_cnt_key == raw_dev->tg_count)
 				if (!state_sv)
 					state_sv = state_temp;
 			dev_dbg(ctx->cam->dev,
@@ -5801,7 +5810,7 @@ int mtk_camsys_extisp_state_handle(struct mtk_raw_device *raw_dev,
 						 E_STATE_EXTISP_INNER);
 				atomic_set(&sensor_ctrl->isp_request_seq_no,
 					frame_inner_idx);
-				mtk_cam_extisp_handle_sv_tstamp(ctx, stream_data, irq_info);
+				mtk_cam_extisp_handle_raw_tstamp(ctx, stream_data, irq_info);
 				dev_info(ctx->cam->dev,
 					"[%s] frame_seq_no:%d, OUTER->INNER state:0x%x\n",
 					__func__, stream_data->frame_seq_no, state_out->estate);
@@ -6014,9 +6023,10 @@ void mtk_camsys_extisp_raw_frame_start(struct mtk_raw_device *raw_dev,
 		/* req_stream_data of req_cq*/
 		req_stream_data = mtk_cam_ctrl_state_to_req_s_data(current_state);
 		dev_info(raw_dev->dev,
-		"SOF[ctx:%d-#%d], CQ-%d is update, composed:%d, cq_addr:0x%x\n",
+		"SOF[ctx:%d-#%d], CQ-%d is update, composed:%d, cq_addr:0x%x, cnt:%d/%d, key:%d\n",
 		ctx->stream_id, dequeued_frame_seq_no, req_stream_data->frame_seq_no,
-		ctx->composed_frame_seq_no, base_addr);
+		ctx->composed_frame_seq_no, base_addr,
+		raw_dev->tg_count, raw_dev->sof_count, req_stream_data->state.sof_cnt_key);
 
 	}
 }
@@ -6038,6 +6048,21 @@ int mtk_cam_extisp_prepare_meta(struct mtk_cam_ctx *ctx,
 				.active_fmt;
 			img_fmt->fmt.pix_mp.width = result.exp_hsize;
 			img_fmt->fmt.pix_mp.height = result.exp_vsize;
+			dev_info(ctx->cam->dev, "[%s] vdev_nodes:%d, w/h/size:%d/%d/%d\n",
+				__func__, MTK_RAW_META_SV_OUT_0 - MTK_RAW_SINK_NUM,
+				img_fmt->fmt.pix_mp.width,
+				img_fmt->fmt.pix_mp.height,
+				img_fmt->fmt.pix_mp.width * img_fmt->fmt.pix_mp.height);
+		}
+		if (pad_src == PAD_SRC_RAW0) {
+			img_fmt = &ctx->pipe->vdev_nodes[
+				MTK_RAW_MAIN_STREAM_SV_1_OUT - MTK_RAW_SINK_NUM]
+				.active_fmt;
+			if (img_fmt->fmt.pix_mp.width != result.exp_hsize ||
+				img_fmt->fmt.pix_mp.height != result.exp_vsize) {
+				result.exp_hsize = 0;
+				result.exp_vsize = 0;
+			}
 			dev_info(ctx->cam->dev, "[%s] vdev_nodes:%d, w/h/size:%d/%d/%d\n",
 				__func__, MTK_RAW_META_SV_OUT_0 - MTK_RAW_SINK_NUM,
 				img_fmt->fmt.pix_mp.width,
@@ -6077,6 +6102,12 @@ void mtk_cam_extisp_handle_sv_tstamp(struct mtk_cam_ctx *ctx,
 					camsv_dev->sof_timestamp;
 		}
 	}
+}
+
+void mtk_cam_extisp_handle_raw_tstamp(struct mtk_cam_ctx *ctx,
+			struct mtk_cam_request_stream_data *stream_data,
+			struct mtk_camsys_irq_info *irq_info)
+{
 	// proc raw timestamp
 	stream_data->sv_frame_params.sensor_img_tstamp[1] =
 					irq_info->ts_ns;
@@ -6084,7 +6115,7 @@ void mtk_cam_extisp_handle_sv_tstamp(struct mtk_cam_ctx *ctx,
 	if (stream_data->timestamp == 0 &&
 		stream_data->sv_frame_params.sensor_meta_tstamp[0] > stream_data->timestamp) {
 		dev_info(ctx->cam->dev, "[%s] fix ts:ctx:%d req:%d(ns) s_data:%lld < meta:%lld\n",
-		__func__, ctx->stream_id, stream_data->timestamp,
+		__func__, ctx->stream_id, stream_data->frame_seq_no, stream_data->timestamp,
 		stream_data->sv_frame_params.sensor_meta_tstamp[0]);
 		stream_data->timestamp = stream_data->sv_frame_params.sensor_meta_tstamp[0];
 	}

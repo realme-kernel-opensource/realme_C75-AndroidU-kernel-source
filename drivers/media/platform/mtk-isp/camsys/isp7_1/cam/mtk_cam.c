@@ -339,6 +339,13 @@ void mtk_cam_s_data_update_timestamp(struct mtk_cam_buffer *buf,
 		case MTK_RAW_META_SV_OUT_0:
 		case MTK_RAW_META_SV_OUT_1:
 		case MTK_RAW_META_SV_OUT_2:
+			/* for seldom case, proc raw sof is abnormal earlier than meta sof */
+			if (vb->timestamp == 0) {
+				vb->timestamp = s_data->sv_frame_params.sensor_meta_tstamp[0];
+				dev_info(ctx->cam->dev, "[%s] fix ts:ctx:%d req:%d(ns) s_data:%lld, meta:%lld\n",
+				__func__, ctx->stream_id, s_data->frame_seq_no, s_data->timestamp,
+				s_data->sv_frame_params.sensor_meta_tstamp[0]);
+			}
 			dev_info(ctx->cam->dev,
 			"%s:%s:vb sequence:%d, timestamp:%lld (mono:%d), pure/meta/proc:%lld/%lld/%lld\n",
 			__func__, node->desc.name, buf->vbb.sequence, vb->timestamp,
@@ -3634,6 +3641,7 @@ static void mtk_cam_req_s_data_init(struct mtk_cam_request *req,
 	req_stream_data->req = req;
 	req_stream_data->pipe_id = pipe_id;
 	req_stream_data->state.estate = E_STATE_READY;
+	req_stream_data->state.sof_cnt_key = 0;
 	req_stream_data->index = s_data_index;
 	req_stream_data->req_id = 0;
 	atomic_set(&req_stream_data->buf_state, -1);
@@ -4923,6 +4931,8 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 	/*EXT-ISP enqueue sv buffer first*/
 	if (mtk_cam_is_ext_isp(ctx) &&
 		ctx->composed_frame_seq_no == 1) {
+		/* mmqos update */
+		mtk_cam_qos_bw_calc(ctx, s_data->raw_dmas, false);
 		mtk_cam_extisp_initial_sv_enque(ctx);
 		mtk_cam_extisp_sv_stream(ctx, 1);
 		/* maintain mraw buffer list*/
@@ -7430,12 +7440,27 @@ int mtk_cam_ctx_stream_on(struct mtk_cam_ctx *ctx)
 			if (ret)
 				goto fail_img_buf_release;
 		}
-
-		ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 1);
-		if (ret) {
-			dev_info(cam->dev, "failed to stream on seninf %s:%d\n",
-				 ctx->seninf->name, ret);
-			goto fail_img_buf_release;
+		if (!mtk_cam_is_ext_isp(ctx)) {
+			ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 1);
+			if (ret) {
+				dev_info(cam->dev, "failed to stream on seninf %s:%d\n",
+					 ctx->seninf->name, ret);
+				goto fail_img_buf_release;
+			}
+		} else {
+			if (ctx->sensor)
+				dev_info(cam->dev, "Preisp with sensor not-to stream on seninf %s\n",
+					 ctx->seninf->name);
+			else {
+				dev_info(cam->dev, "Preisp UT stream on seninf %s\n",
+					 ctx->seninf->name);
+				ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 1);
+				if (ret) {
+					dev_info(cam->dev, "failed to stream on seninf %s:%d\n",
+						 ctx->seninf->name, ret);
+					goto fail_img_buf_release;
+				}
+			}
 		}
 	} else {
 		ctx->processing_buffer_list.cnt = 0;
@@ -7777,11 +7802,27 @@ int mtk_cam_ctx_stream_off(struct mtk_cam_ctx *ctx)
 
 	/* make sure all raw/camsv/mraw irq is disabled */
 	if (!mtk_cam_feature_is_m2m(feature)) {
-		ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 0);
-		if (ret) {
-			dev_info(cam->dev, "failed to stream off %s:%d\n",
-				 ctx->seninf->name, ret);
-			return -EPERM;
+		if (!mtk_cam_is_ext_isp(ctx)) {
+			ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 0);
+			if (ret) {
+				dev_info(cam->dev, "failed to stream off %s:%d\n",
+					 ctx->seninf->name, ret);
+				return -EPERM;
+			}
+		} else {
+			if (ctx->sensor)
+				dev_info(cam->dev, "Preisp with sensor not-to stream off seninf %s\n",
+					 ctx->seninf->name);
+			else {
+				dev_info(cam->dev, "Preisp UT stream off seninf %s\n",
+					 ctx->seninf->name);
+				ret = v4l2_subdev_call(ctx->seninf, video, s_stream, 0);
+				if (ret) {
+					dev_info(cam->dev, "failed to stream on seninf %s:%d\n",
+						 ctx->seninf->name, ret);
+					return -EPERM;
+				}
+			}
 		}
 	}
 

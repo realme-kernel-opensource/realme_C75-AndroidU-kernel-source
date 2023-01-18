@@ -100,6 +100,7 @@ enum MTK_CAMSYS_STATE_IDX {
 struct mtk_camsys_ctrl_state {
 	enum MTK_CAMSYS_STATE_IDX estate;
 	struct list_head state_element;
+	int sof_cnt_key;
 };
 
 struct mtk_camsys_link_ctrl {
@@ -216,6 +217,8 @@ void mtk_camsys_extisp_yuv_frame_start(struct mtk_camsv_device *camsv,
 void mtk_camsys_extisp_raw_frame_start(struct mtk_raw_device *raw_dev,
 	struct mtk_cam_ctx *ctx, struct mtk_camsys_irq_info *irq_info);
 void mtk_cam_extisp_handle_sv_tstamp(struct mtk_cam_ctx *ctx,
+	struct mtk_cam_request_stream_data *s_data, struct mtk_camsys_irq_info *irq_info);
+void mtk_cam_extisp_handle_raw_tstamp(struct mtk_cam_ctx *ctx,
 	struct mtk_cam_request_stream_data *s_data, struct mtk_camsys_irq_info *irq_info);
 int is_extisp_sv_all_frame_start(struct mtk_camsv_device *camsv,
 		struct mtk_cam_ctx *ctx);

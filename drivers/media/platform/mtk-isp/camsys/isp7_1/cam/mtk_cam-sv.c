@@ -2575,6 +2575,7 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 	unsigned int fbc_imgo_status, imgo_addr, imgo_addr_msb;
 	unsigned int tg_sen_mode, dcif_set, tg_vf_con, tg_path_cfg;
 	unsigned int irq_flag = 0;
+	unsigned int tg_cnt;
 	bool wake_thread = 0;
 
 	irq_status	= readl_relaxed(camsv_dev->base + REG_CAMSV_INT_STATUS);
@@ -2596,7 +2597,9 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		readl_relaxed(camsv_dev->base_inner + REG_CAMSV_TG_VF_CON);
 	tg_path_cfg =
 		readl_relaxed(camsv_dev->base_inner + REG_CAMSV_TG_PATH_CFG);
-
+	tg_cnt =
+		readl_relaxed(camsv_dev->base + REG_CAMSV_TG_INTER_ST);
+	tg_cnt = (tg_cnt & 0xff0000) >> 16;
 	err_status = irq_status & INT_ST_MASK_CAMSV_ERR;
 	imgo_err_status = irq_status & CAMSV_INT_DMA_ERR_ST;
 	imgo_overr_status = irq_status & CAMSV_INT_IMGO_OVERR_ST;
@@ -2631,6 +2634,7 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		irq_info.irq_type |= (1 << CAMSYS_IRQ_FRAME_START);
 		camsv_dev->last_sof_time_ns = irq_info.ts_ns;
 		camsv_dev->sof_count++;
+		camsv_dev->tg_cnt = tg_cnt;
 		camsv_dev->sof_timestamp = ktime_get_boottime_ns();
 		if (camsv_dev->pipeline->hw_scen &
 			MTK_CAMSV_SUPPORTED_SPECIAL_HW_SCENARIO)

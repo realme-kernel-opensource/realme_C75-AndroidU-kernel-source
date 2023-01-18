@@ -216,6 +216,8 @@ struct mtk_camsv_device {
 	atomic_t is_fifo_overflow;
 
 	unsigned int sof_count;
+	/* preisp used - for sync.*/
+	unsigned int tg_cnt;
 	u64 last_sof_time_ns;
 	unsigned int frame_wait_to_process;
 	struct notifier_block notifier_blk;
