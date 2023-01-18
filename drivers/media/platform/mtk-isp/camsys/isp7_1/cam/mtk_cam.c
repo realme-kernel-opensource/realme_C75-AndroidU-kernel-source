@@ -5672,6 +5672,7 @@ void mtk_cam_dev_req_enqueue(struct mtk_cam_device *cam,
 				if (!immediate_switch_sensor &&
 				    ctx->sensor && MTK_CAM_INITIAL_REQ_SYNC == 0 &&
 					(ctx->pipe->feature_active == 0 ||
+					mtk_cam_is_ext_isp(ctx) ||
 					req_stream_data->frame_params.raw_param.hardware_scenario
 					== MTKCAM_IPI_HW_PATH_OFFLINE_SRT_DCIF_STAGGER) &&
 					req_stream_data->frame_seq_no == 2) {

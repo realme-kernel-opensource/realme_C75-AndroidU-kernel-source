@@ -1638,7 +1638,8 @@ static void mtk_cam_try_set_sensor(struct mtk_cam_ctx *ctx)
 	/*for 1st unsync, sensor setting will be set at enque thread*/
 	if (ctx->used_raw_num) {
 		if (MTK_CAM_INITIAL_REQ_SYNC == 0 &&
-				ctx->pipe->feature_active == 0 &&
+				(ctx->pipe->feature_active == 0 ||
+				mtk_cam_is_ext_isp(ctx)) &&
 				sensor_seq_no_next <= 2) {
 			return;
 		}
