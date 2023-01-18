@@ -4931,8 +4931,6 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 	/*EXT-ISP enqueue sv buffer first*/
 	if (mtk_cam_is_ext_isp(ctx) &&
 		ctx->composed_frame_seq_no == 1) {
-		/* mmqos update */
-		mtk_cam_qos_bw_calc(ctx, s_data->raw_dmas, false);
 		mtk_cam_extisp_initial_sv_enque(ctx);
 		mtk_cam_extisp_sv_stream(ctx, 1);
 		/* maintain mraw buffer list*/
@@ -4944,6 +4942,8 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 			spin_unlock(&ctx->mraw_processing_buffer_list[i].lock);
 		}
 		spin_unlock(&ctx->using_buffer_list.lock);
+		/* mmqos update */
+		mtk_cam_qos_bw_calc(ctx, s_data->raw_dmas, false);
 		/* apply mraw CQ for all streams */
 		for (i = 0; i < ctx->used_mraw_num; i++) {
 			mraw_dev = get_mraw_dev(ctx->cam, ctx->mraw_pipe[i]);
