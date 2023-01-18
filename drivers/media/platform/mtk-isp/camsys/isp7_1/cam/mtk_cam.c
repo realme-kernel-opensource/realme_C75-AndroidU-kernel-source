@@ -4910,6 +4910,7 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 
 		return 0;
 	}
+
 	spin_lock(&ctx->composed_buffer_list.lock);
 	list_add_tail(&buf_entry->list_entry,
 		      &ctx->composed_buffer_list.list);
@@ -4919,7 +4920,38 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 			__func__, ctx->composed_buffer_list.cnt);
 	}
 	spin_unlock(&ctx->composed_buffer_list.lock);
+	/*EXT-ISP enqueue sv buffer first*/
+	if (mtk_cam_is_ext_isp(ctx) &&
+		ctx->composed_frame_seq_no == 1) {
+		mtk_cam_extisp_initial_sv_enque(ctx);
+		mtk_cam_extisp_sv_stream(ctx, 1);
+		/* maintain mraw buffer list*/
+		for (i = 0; i < ctx->used_mraw_num; i++) {
+			spin_lock(&ctx->mraw_processing_buffer_list[i].lock);
+			list_add_tail(&mraw_buf_entry[i]->list_entry,
+					&ctx->mraw_processing_buffer_list[i].list);
+			ctx->mraw_processing_buffer_list[i].cnt++;
+			spin_unlock(&ctx->mraw_processing_buffer_list[i].lock);
+		}
+		spin_unlock(&ctx->using_buffer_list.lock);
+		/* apply mraw CQ for all streams */
+		for (i = 0; i < ctx->used_mraw_num; i++) {
+			mraw_dev = get_mraw_dev(ctx->cam, ctx->mraw_pipe[i]);
+			if (mraw_buf_entry[i]->s_data->req->pipe_used &
+				(1 << ctx->mraw_pipe[i]->id)) {
+				mraw_dev->is_enqueued = 1;
+				apply_mraw_cq(mraw_dev,
+					mraw_buf_entry[i]->buffer.iova,
+					mraw_buf_entry[i]->mraw_cq_desc_size,
+					mraw_buf_entry[i]->mraw_cq_desc_offset,
+					(ctx->composed_frame_seq_no == 1) ? 1 : 0);
+			} else {
+				mtk_cam_mraw_vf_on(mraw_dev, 0);
+			}
+		}
 
+		return 0;
+	}
 	for (i = 0; i < ctx->used_mraw_num; i++) {
 		spin_lock(&ctx->mraw_composed_buffer_list[i].lock);
 		list_add_tail(&mraw_buf_entry[i]->list_entry,
@@ -4936,12 +4968,7 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 			mtk_camsys_composed_delay_enque(raw_dev, ctx, s_data);
 		}
 	}
-	/*EXT-ISP enqueue sv buffer first*/
-	if (mtk_cam_is_ext_isp(ctx) &&
-		ctx->composed_frame_seq_no == 1) {
-		mtk_cam_extisp_initial_sv_enque(ctx);
-		mtk_cam_extisp_sv_stream(ctx, 1);
-	}
+
 	return 0;
 }
 
@@ -7561,7 +7588,7 @@ int mtk_cam_ctx_stream_off(struct mtk_cam_ctx *ctx)
 	unsigned int i, enabled_sv = 0;
 	int ret;
 	int feature = 0;
-	unsigned int hw_scen = 0;
+
 
 	if (!ctx->streaming) {
 		dev_info(cam->dev, "ctx-%d is already streaming off\n",
@@ -7619,15 +7646,21 @@ int mtk_cam_ctx_stream_off(struct mtk_cam_ctx *ctx)
 			__func__, ctx->stream_id);
 	}
 
-	// If stagger, need to turn off cam sv in advanced
-	if (mtk_cam_feature_is_stagger(feature))
-		hw_scen = mtk_raw_get_hdr_scen_id(ctx);
-	else if (mtk_cam_is_with_w_channel(ctx))
-		hw_scen = (1 << MTKCAM_SV_SPECIAL_SCENARIO_ADDITIONAL_RAW);
-	else if (mtk_cam_hw_is_dc(ctx))
-		hw_scen = (1 << MTKCAM_IPI_HW_PATH_OFFLINE_SRT_DCIF_STAGGER);
+	if (mtk_cam_feature_is_stagger(feature)) {
+		unsigned int hw_scen = mtk_raw_get_hdr_scen_id(ctx);
 
-	if (hw_scen) {
+		for (i = MTKCAM_SUBDEV_CAMSV_START; i < MTKCAM_SUBDEV_CAMSV_END; i++) {
+			if (ctx->pipe->enabled_raw & (1 << i)) {
+				mtk_cam_sv_dev_stream_on(
+					ctx, i - MTKCAM_SUBDEV_CAMSV_START, 0, hw_scen);
+				cam->sv.pipelines[i - MTKCAM_SUBDEV_CAMSV_START].is_occupied = 0;
+				ctx->pipe->enabled_raw &= ~(1 << i);
+				enabled_sv |= (1 << i);
+			}
+		}
+	} else if (mtk_cam_is_with_w_channel(ctx)) {
+		unsigned int hw_scen = (1 << MTKCAM_SV_SPECIAL_SCENARIO_ADDITIONAL_RAW);
+
 		for (i = MTKCAM_SUBDEV_CAMSV_START; i < MTKCAM_SUBDEV_CAMSV_END; i++) {
 			if (ctx->pipe && ctx->pipe->enabled_raw & (1 << i)) {
 				mtk_cam_sv_dev_stream_on(
@@ -7724,13 +7757,18 @@ int mtk_cam_ctx_stream_off(struct mtk_cam_ctx *ctx)
 			video, s_stream, 0);
 	}
 
-	for (i = MTKCAM_SUBDEV_CAMSV_START ; i < MTKCAM_SUBDEV_CAMSV_END ; i++) {
-		if (enabled_sv & (1 << i)) {
-			camsv_dev = get_camsv_dev(cam, &cam->sv.pipelines[
-				i - MTKCAM_SUBDEV_CAMSV_START]);
-			pm_runtime_put_sync(camsv_dev->dev);
+	if (mtk_cam_feature_is_stagger(feature) ||
+		mtk_cam_feature_is_time_shared(feature) ||
+		mtk_cam_is_with_w_channel(ctx)) {
+		for (i = MTKCAM_SUBDEV_CAMSV_START ; i < MTKCAM_SUBDEV_CAMSV_END ; i++) {
+			if (enabled_sv & (1 << i)) {
+				camsv_dev = get_camsv_dev(cam, &cam->sv.pipelines[
+					i - MTKCAM_SUBDEV_CAMSV_START]);
+				pm_runtime_put_sync(camsv_dev->dev);
+			}
 		}
 	}
+
 
 	for (i = 0; i < MAX_MRAW_PIPES_PER_STREAM && ctx->mraw_pipe[i] ; i++) {
 		ret = v4l2_subdev_call(&ctx->mraw_pipe[i]->subdev,
