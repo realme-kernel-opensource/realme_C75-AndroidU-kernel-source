@@ -5473,36 +5473,40 @@ void mtk_cam_extisp_sv_stream(struct mtk_cam_ctx *ctx, bool en)
 	if (en && (ctx->ext_isp_meta_off != 0 ||
 		ctx->ext_isp_procraw_off != 0 ||
 		ctx->ext_isp_pureraw_off != 0)) {
+		int off_sv_pureraw, off_sv_meta, sv_i, padidx;
+
+		for (sv_i = MTKCAM_SUBDEV_CAMSV_START;
+		sv_i < MTKCAM_SUBDEV_CAMSV_END; sv_i++) {
+			if (ctx->pipe->enabled_raw & (1 << sv_i)) {
+				padidx = ctx->cam->sv.pipelines
+				[sv_i - MTKCAM_SUBDEV_CAMSV_START]
+				.seninf_padidx;
+				if (padidx == PAD_SRC_RAW0)
+					off_sv_pureraw = sv_i;
+				else if (padidx == PAD_SRC_GENERAL0)
+					off_sv_meta = sv_i;
+			}
+		}
 		if (mtk_cam_is_ext_isp_yuv(ctx)) {
 			if (ctx->ext_isp_pureraw_off &&
 				ctx->ext_isp_meta_off) {
 				mtk_cam_sv_dev_stream_on(ctx,
 				MTKCAM_SUBDEV_CAMSV_2 - MTKCAM_SUBDEV_CAMSV_START,
 				1, hw_scen);
-				ctx->cam->sv.pipelines[
-					MTKCAM_SUBDEV_CAMSV_0 - MTKCAM_SUBDEV_CAMSV_START]
-						.is_occupied = 0;
-				ctx->cam->sv.pipelines[
-					MTKCAM_SUBDEV_CAMSV_1 - MTKCAM_SUBDEV_CAMSV_START]
-						.is_occupied = 0;
 				return;
 			}
 		}
 		if (ctx->ext_isp_meta_off) {
 			mtk_cam_sv_dev_stream_on(ctx,
-				MTKCAM_SUBDEV_CAMSV_0 - MTKCAM_SUBDEV_CAMSV_START,
+				off_sv_pureraw - MTKCAM_SUBDEV_CAMSV_START,
 				1, hw_scen);
-			ctx->cam->sv.pipelines[
-					MTKCAM_SUBDEV_CAMSV_1 - MTKCAM_SUBDEV_CAMSV_START]
-						.is_occupied = 0;
 		} else if (ctx->ext_isp_pureraw_off) {
 			mtk_cam_sv_dev_stream_on(ctx,
-				MTKCAM_SUBDEV_CAMSV_1 - MTKCAM_SUBDEV_CAMSV_START,
+				off_sv_meta - MTKCAM_SUBDEV_CAMSV_START,
 				1, hw_scen);
-			ctx->cam->sv.pipelines[
-					MTKCAM_SUBDEV_CAMSV_0 - MTKCAM_SUBDEV_CAMSV_START]
-						.is_occupied = 0;
 		}
+		dev_info(ctx->cam->dev, "force raw (0x%x) %d/%d",
+			ctx->pipe->enabled_raw, off_sv_pureraw, off_sv_meta);
 		return;
 	}
 	if (en) {
