@@ -6792,6 +6792,7 @@ static void mtk_drm_crtc_fix_conn_mode(struct drm_crtc *crtc, struct drm_display
 	drm_mode_set_crtcinfo(&crtc->state->adjusted_mode, 0);
 }
 
+extern bool g_dsi_switched;
 static void mtk_drm_crtc_update_interface(struct drm_crtc *crtc,
 	struct drm_atomic_state *state)
 {
@@ -6811,6 +6812,7 @@ static void mtk_drm_crtc_update_interface(struct drm_crtc *crtc,
 			if (connector->connector_type == DRM_MODE_CONNECTOR_DSI &&
 				output_comp &&
 				mtk_dsi_get_comp_id(connector) != output_comp->id) {
+				g_dsi_switched = true;
 				/*output component is changed*/
 				comp_id = mtk_dsi_get_comp_id(connector);
 				mtk_crtc->ddp_mode =

@@ -1255,6 +1255,7 @@ struct DISP_AAL_HIST {
 	int srcWidth;
 	int srcHeight;
 	int pipeLineNum;
+	bool need_config;
 };
 
 #define DRM_IOCTL_MTK_AAL_INIT_REG	DRM_IOWR(DRM_COMMAND_BASE + \

@@ -761,6 +761,8 @@ static void mtk_aal_init(struct mtk_ddp_comp *comp,
 	AALFLOW_LOG("led mode: %d-\n", atomic_read(&g_led_mode));
 }
 
+bool g_dsi_switched;
+static bool g_aal_need_config;
 static bool debug_bypass_alg_mode;
 static void mtk_aal_config(struct mtk_ddp_comp *comp,
 	struct mtk_ddp_config *cfg, struct cmdq_pkt *handle)
@@ -776,7 +778,7 @@ static void mtk_aal_config(struct mtk_ddp_comp *comp,
 		width = cfg->w;
 	}
 
-	AALFLOW_LOG("(w,h)=(%d,%d)+, %d\n",
+	DDPMSG("%s, (w,h)=(%d,%d)+, %d\n", __func__,
 		width, height, g_aal_get_size_available);
 
 	g_aal_size.height = height;
@@ -821,6 +823,10 @@ static void mtk_aal_config(struct mtk_ddp_comp *comp,
 	mtk_aal_init(comp, cfg, handle);
 	//disp_aal_flip_sram(comp, handle, __func__);
 
+	if (g_dsi_switched) {
+		g_aal_need_config = true;
+		g_dsi_switched = false;
+	}
 	AALWC_LOG("AAL_CFG=0x%x  compid:%d\n",
 		readl(comp->regs + DISP_AAL_CFG), comp->id);
 }
@@ -944,6 +950,7 @@ static int disp_aal_copy_hist_to_user(struct DISP_AAL_HIST *hist)
 	if (g_aal_fo->mtk_dre30_support)
 		g_aal_hist_db.dre30_hist = g_aal_init_dre30.dre30_hist_addr;
 
+	g_aal_hist_db.need_config = g_aal_need_config;
 	memcpy(hist, &g_aal_hist_db, sizeof(g_aal_hist_db));
 
 	if (g_aal_fo->mtk_dre30_support)
@@ -1037,6 +1044,10 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 	phys_addr_t dre3_pa = mtk_aal_dre3_pa(comp);
 	int width = init_regs->isdual ? init_regs->width / 2 : init_regs->width;
 	int dre_alg_mode = 1;
+
+	DDPMSG("%s, width:%d, height:%d\n", __func__, width, init_regs->height);
+	if (g_aal_size.width == width && g_aal_size.height == init_regs->height)
+		g_aal_need_config = false;
 
 	AALFLOW_LOG("start, bitShift: %d  compId%d\n", aal_data->data->bitShift, comp->id);
 	cmdq_pkt_write(handle, comp->cmdq_base,
@@ -1262,6 +1273,7 @@ int mtk_drm_ioctl_aal_init_reg(struct drm_device *dev, void *data,
 	struct drm_crtc *crtc = private->crtc[0];
 	g_aal_data->crtc = crtc;
 
+	DDPMSG("%s in\n", __func__);
 	return mtk_crtc_user_cmd(crtc, comp, INIT_REG, data);
 }
 
@@ -2804,6 +2816,7 @@ static irqreturn_t mtk_disp_aal_irq_handler(int irq, void *dev_id)
 	struct mtk_ddp_comp *comp = &priv->ddp_comp;
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
 
+	DDPMSG("%s in\n", __func__);
 	if (atomic_read(&aal_data->is_clock_on) == 1)
 		val = readl(comp->regs + DISP_AAL_INTSTA);
 
