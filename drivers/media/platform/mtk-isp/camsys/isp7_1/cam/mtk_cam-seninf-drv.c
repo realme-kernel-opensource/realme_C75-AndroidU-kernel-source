@@ -2114,6 +2114,7 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 	struct v4l2_ctrl *ctrl;
 	int val = 0;
 	int reset_by_user = 0;
+	bool in_reset = 0;
 
 	if (!force_check && ctx->dbg_last_dump_req != 0 &&
 		ctx->dbg_last_dump_req == seq_id) {
@@ -2131,6 +2132,13 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 			ctx->dbg_timeout = val;
 	}
 
+	ctrl = v4l2_ctrl_find(sensor_sd->ctrl_handler, V4L2_CID_MTK_SENSOR_IN_RESET);
+	if (ctrl) {
+		val = v4l2_ctrl_g_ctrl(ctrl);
+		if (val > 0)
+			in_reset = true;
+	}
+
 	ret = pm_runtime_get_sync(ctx->dev);
 	if (ret < 0) {
 		dev_info(ctx->dev, "%s pm_runtime_get_sync ret %d\n", __func__, ret);
@@ -2139,14 +2147,17 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 	}
 
 	if (ctx->streaming) {
-		ret = g_seninf_ops->_debug(sd_to_ctx(sd));
+		if (!in_reset) {
+			ret = g_seninf_ops->_debug(sd_to_ctx(sd));
 #if ESD_RESET_SUPPORT
-		if (ret != 0) {
-			reset_by_user = is_reset_by_user(sd_to_ctx(sd));
-			if (!reset_by_user)
-				reset_sensor(sd_to_ctx(sd));
-		}
+			if (ret != 0) {
+				reset_by_user = is_reset_by_user(sd_to_ctx(sd));
+				if (!reset_by_user)
+					reset_sensor(sd_to_ctx(sd));
+			}
 #endif
+		} else
+			dev_info(ctx->dev, "%s skip dump, sensor is in resetting\n", __func__);
 	} else
 		dev_info(ctx->dev, "%s should not dump during stream off\n", __func__);
 

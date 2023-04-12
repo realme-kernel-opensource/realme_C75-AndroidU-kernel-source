@@ -315,7 +315,8 @@ int mtk_cam_sv_dmao_enable(
 	struct mtk_camsv_device *dev, struct mtkcam_ipi_input_param *cfg_in_param);
 int mtk_cam_sv_fbc_enable(
 	struct mtk_camsv_device *dev, struct mtkcam_ipi_input_param *cfg_in_param);
-
+void mtk_cam_sv_vf_reset(struct mtk_cam_ctx *ctx,
+	struct mtk_camsv_device *dev);
 int mtk_cam_sv_tg_disable(struct mtk_camsv_device *dev);
 int mtk_cam_sv_top_disable(struct mtk_camsv_device *dev);
 int mtk_cam_sv_dmao_disable(struct mtk_camsv_device *dev);

@@ -8,6 +8,7 @@
 #include "adaptor.h"
 #include "adaptor-ioctl.h"
 #include "adaptor-common-ctrl.h"
+#include "adaptor-fsync-ctrls.h"
 #include "adaptor-i2c.h"
 
 #define GAIN_TBL_SIZE 4096
@@ -1173,6 +1174,35 @@ static int g_fine_integ_line_by_scenario(struct adaptor_ctx *ctx, void *arg)
 }
 
 
+static int g_fsync_frame_length_info(struct adaptor_ctx *ctx, void *arg)
+{
+	struct mtk_fs_frame_length_info *p_fs_fl_info = NULL;
+	int ret = 0;
+
+	if (unlikely(arg == NULL)) {
+		ret = -ENOIOCTLCMD;
+		adaptor_logi(ctx,
+			"ERROR: VIDIOC_MTK_G_FS_FRAME_LENGTH_INFO, get input pointer arg:%p, return\n",
+			arg);
+		return ret;
+	}
+
+	p_fs_fl_info = arg;
+
+	notify_fsync_mgr_g_fl_record_info(ctx, p_fs_fl_info);
+
+	dev_info(ctx->dev,
+		"[%s] VIDIOC_MTK_G_FS_FRAME_LENGTH_INFO, idx:%u, target_min_fl_us:%u, out_fl_us:%u, ret:%d\n",
+		__func__,
+		ctx->idx,
+		p_fs_fl_info->target_min_fl_us,
+		p_fs_fl_info->out_fl_us,
+		ret);
+
+	return ret;
+}
+
+
 static int s_video_framerate(struct adaptor_ctx *ctx, void *arg)
 {
 	u32 *info = arg;
@@ -1389,6 +1419,7 @@ static const struct ioctl_entry ioctl_list[] = {
 	{VIDIOC_MTK_G_OUTPUT_FORMAT_BY_SCENARIO, g_output_format_by_scenario},
 	{VIDIOC_MTK_G_FINE_INTEG_LINE_BY_SCENARIO, g_fine_integ_line_by_scenario},
 	{VIDIOC_MTK_G_MAX_EXPOSURE_LINE, g_max_exposure_line_ioctl},
+	{VIDIOC_MTK_G_FS_FRAME_LENGTH_INFO, g_fsync_frame_length_info},
 	/* SET */
 	{VIDIOC_MTK_S_VIDEO_FRAMERATE, s_video_framerate},
 	{VIDIOC_MTK_S_MAX_FPS_BY_SCENARIO, s_max_fps_by_scenario},

@@ -381,6 +381,29 @@ struct mtk_n_1_mode {
 	__u8 en;
 };
 
+enum FS_SYNC_TYPE {
+	FS_SYNC_TYPE_NONE = 0,
+
+	/* below tags, chose one (default use VSYNC, mutually exclusive) */
+	FS_SYNC_TYPE_VSYNC = 1 << 1,
+	FS_SYNC_TYPE_READOUT_CENTER = 1 << 2,
+
+	/* below tags, chose one (default use LE, mutually exclusive) */
+	FS_SYNC_TYPE_LE = 1 << 3,
+	FS_SYNC_TYPE_SE = 1 << 4,
+
+	/* SA - Async mode */
+	FS_SYNC_TYPE_ASYNC_MODE = 1 << 8,
+};
+
+struct mtk_fs_frame_length_info {
+	/* for stable case, sensor min frame length */
+	__u32 target_min_fl_us;
+
+	/* sensor current frame length value */
+	__u32 out_fl_us;
+};
+
 struct mtk_test_pattern_data {
 	__u32 Channel_R;
 	__u32 Channel_Gr;
@@ -392,6 +415,17 @@ struct mtk_test_pattern_data {
 struct mtk_fine_integ_line {
 	__u32 scenario_id;
 	__u32 fine_integ_line;
+};
+
+struct mtk_sensor_mode_info {
+	__u32 scenario_id;
+	__u32 mode_exposure_num;
+};
+
+struct mtk_sensor_mode_config_info {
+	__u32 current_scenario_id;
+	__u32 count;
+	struct mtk_sensor_mode_info seamless_scenario_infos[SENSOR_SCENARIO_ID_MAX];
 };
 
 /* GET */
@@ -506,6 +540,9 @@ struct mtk_fine_integ_line {
 
 #define VIDIOC_MTK_G_MAX_EXPOSURE_LINE \
 	_IOWR('M', BASE_VIDIOC_PRIVATE + 39, struct mtk_max_exp_line)
+
+#define VIDIOC_MTK_G_FS_FRAME_LENGTH_INFO \
+	_IOWR('M', BASE_VIDIOC_PRIVATE + 43, struct mtk_fs_frame_length_info)
 
 /* SET */
 

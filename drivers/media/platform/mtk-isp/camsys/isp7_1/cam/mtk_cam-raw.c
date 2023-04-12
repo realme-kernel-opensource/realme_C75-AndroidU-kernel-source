@@ -927,6 +927,14 @@ static int mtk_raw_set_ctrl(struct v4l2_ctrl *ctrl)
 			pipeline->feature_pending, pipeline->feature_active);
 		ret = 0;
 		break;
+	case V4L2_CID_MTK_CAM_CAMSYS_VF_RESET:
+		if (mtk_cam_feature_is_ext_isp(pipeline->feature_active))
+			mtk_cam_extisp_vf_reset(pipeline);
+		else
+			dev_info(dev,
+				"%s:pipe(%d) CAMSYS_VF_RESET not supported feature:0x%x\n",
+				__func__, pipeline->id, pipeline->feature_active);
+		break;
 	case V4L2_CID_MTK_CAM_CAMSYS_HW_MODE:
 	{
 		pipeline->hw_mode_pending = *ctrl->p_new.p_s64;
@@ -1093,6 +1101,17 @@ static const struct v4l2_ctrl_config frame_sync_id = {
 	.max = 0x7FFFFFFF,
 	.step = 1,
 	.def = -1,
+};
+
+static const struct v4l2_ctrl_config vf_reset = {
+	.ops = &cam_ctrl_ops,
+	.id = V4L2_CID_MTK_CAM_CAMSYS_VF_RESET,
+	.name = "VF reset",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 100,
+	.step = 1,
+	.def = 0,
 };
 
 static const struct v4l2_ctrl_config mtk_feature = {
@@ -1815,6 +1834,45 @@ void subsample_enable(struct mtk_raw_device *dev)
 			readl_relaxed(dev->base + REG_CQ_EN),
 			readl_relaxed(dev->base + REG_CTL_SW_PASS1_DONE));
 }
+void mtk_cam_raw_vf_reset(struct mtk_cam_ctx *ctx,
+	struct mtk_raw_device *dev)
+{
+	int val, chk_val;
+
+	val = readl_relaxed(dev->base + REG_TG_VF_CON);
+	val &= ~TG_VFDATA_EN;
+	writel(val, dev->base + REG_TG_VF_CON);
+	wmb(); /* TBC */
+
+	enable_tg_db(dev, 0);
+	if (readx_poll_timeout(readl, dev->base_inner + REG_TG_VF_CON,
+		chk_val, chk_val == val,
+		1 /* sleep, us */,
+		3000 /* timeout, us*/) < 0) {
+		dev_info(dev->dev, "%s: wait vf off timeout: TG_VF_CON 0x%x\n",
+				 __func__, chk_val);
+	}
+	enable_tg_db(dev, 1);
+	dev_info(dev->dev, "raw_vf_reset vf_en off");
+
+	val = readl_relaxed(dev->base + REG_TG_VF_CON);
+	val |= TG_VFDATA_EN;
+	writel_relaxed(val, dev->base + REG_TG_VF_CON);
+	wmb(); /* TBC */
+	reset_dma_fbc(dev->dev, dev->base, dev->yuv_base);
+	enable_tg_db(dev, 0);
+	if (readx_poll_timeout(readl, dev->base_inner + REG_TG_VF_CON,
+		chk_val, chk_val == val,
+		1 /* sleep, us */,
+		3000 /* timeout, us*/) < 0) {
+		dev_info(dev->dev, "%s: wait vf on timeout: TG_VF_CON 0x%x\n",
+				 __func__, chk_val);
+	}
+	enable_tg_db(dev, 1);
+	dev_info(dev->dev, "raw_vf_reset vf_en on");
+
+	dev_info(dev->dev, "raw_vf_reset");
+}
 
 void initialize(struct mtk_raw_device *dev, int is_slave)
 {
@@ -1841,6 +1899,7 @@ void initialize(struct mtk_raw_device *dev, int is_slave)
 
 	dev->is_slave = is_slave;
 	dev->sof_count = 0;
+	dev->tg_count = 0;
 	dev->vsync_count = 0;
 	dev->sub_sensor_ctrl_en = false;
 	dev->time_shared_busy = 0;
@@ -2471,7 +2530,7 @@ static irqreturn_t mtk_irq_raw(int irq, void *data)
 	fbc_fho_ctl2 =
 		readl_relaxed(REG_FBC_CTL2(raw_dev->base + FBC_R1A_BASE, 1));
 	tg_cnt = readl_relaxed(raw_dev->base + REG_TG_INTER_ST);
-	tg_cnt = (tg_cnt & 0xff0000) >> 16;
+	tg_cnt = (raw_dev->tg_count & 0xffffff00) + ((tg_cnt & 0xff000000) >> 24);
 	err_status = irq_status & INT_ST_MASK_CAM_ERR;
 
 	if (unlikely(debug_raw))
@@ -2521,8 +2580,12 @@ static irqreturn_t mtk_irq_raw(int irq, void *data)
 		irq_info.irq_type |= 1 << CAMSYS_IRQ_FRAME_START;
 		raw_dev->sof_count++;
 		raw_dev->cur_vsync_idx = 0;
-		raw_dev->tg_count = tg_cnt;
+		if (tg_cnt < raw_dev->tg_count)
+			raw_dev->tg_count = tg_cnt + BIT(8);
+		else
+			raw_dev->tg_count = tg_cnt;
 		raw_dev->last_sof_time_ns = irq_info.ts_ns;
+		irq_info.tg_cnt = raw_dev->tg_count;
 		irq_info.write_cnt = ((fbc_fho_ctl2 & WCNT_BIT_MASK) >> 8) - 1;
 		irq_info.fbc_cnt = (fbc_fho_ctl2 & CNT_BIT_MASK) >> 16;
 	}
@@ -3059,7 +3122,10 @@ static int mtk_raw_sd_subscribe_event(struct v4l2_subdev *subdev,
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	case V4L2_EVENT_ESD_RECOVERY:
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
-
+	case V4L2_EVENT_REQUEST_SENSOR_TRIGGER:
+		return v4l2_event_subscribe(fh, sub, 0, NULL);
+	case V4L2_EVENT_EXTISP_CAMSYS_READY:
+		return v4l2_event_subscribe(fh, sub, 0, NULL);
 	default:
 		return -EINVAL;
 	}
@@ -5959,6 +6025,10 @@ static void mtk_raw_pipeline_ctrl_setup(struct mtk_raw_pipeline *pipe)
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrl = v4l2_ctrl_new_custom(ctrl_hdlr, &frame_sync_id, NULL);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
+			       V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
+	ctrl = v4l2_ctrl_new_custom(ctrl_hdlr, &vf_reset, NULL);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE |
 			       V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;

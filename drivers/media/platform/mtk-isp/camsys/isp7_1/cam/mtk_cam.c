@@ -3642,6 +3642,7 @@ static void mtk_cam_req_s_data_init(struct mtk_cam_request *req,
 	req_stream_data->pipe_id = pipe_id;
 	req_stream_data->state.estate = E_STATE_READY;
 	req_stream_data->state.sof_cnt_key = 0;
+	req_stream_data->state.loss_raw_cq_key = 0;
 	req_stream_data->index = s_data_index;
 	req_stream_data->req_id = 0;
 	atomic_set(&req_stream_data->buf_state, -1);
@@ -4959,6 +4960,7 @@ static int isp_composer_handle_ack(struct mtk_cam_device *cam,
 				mtk_cam_mraw_vf_on(mraw_dev, 0);
 			}
 		}
+		mtk_cam_event_extisp_camsys_ready(ctx->pipe);
 
 		return 0;
 	}
@@ -5566,6 +5568,7 @@ void mtk_cam_dev_req_enqueue(struct mtk_cam_device *cam,
 			     struct mtk_cam_request *req)
 {
 	unsigned int i, j;
+	unsigned long flags;
 
 	for (i = 0; i < cam->max_stream_num; i++) {
 		if (req->pipe_used & (1 << i)) {
@@ -5602,6 +5605,7 @@ void mtk_cam_dev_req_enqueue(struct mtk_cam_device *cam,
 			}
 			/*sensor setting after request drained check*/
 			if (ctx->used_raw_num) {
+				spin_lock_irqsave(&sensor_ctrl->drained_check_lock, flags);
 				drained_seq_no = atomic_read(&sensor_ctrl->last_drained_seq_no);
 				dev_dbg(cam->dev, "%s: feature pending(0x%x) active(0x%x)\n",
 							__func__,
@@ -5616,9 +5620,7 @@ void mtk_cam_dev_req_enqueue(struct mtk_cam_device *cam,
 					/* should exclude sensor set in below <= second request */
 					if (atomic_read(&sensor_ctrl->sensor_enq_seq_no) ==
 						drained_seq_no && drained_seq_no > 2)
-						mtk_cam_submit_kwork_in_sensorctrl(
-							sensor_ctrl->sensorsetting_wq,
-							sensor_ctrl);
+						mtk_cam_try_set_sensor_at_enque(req_stream_data);
 				} else if (mtk_cam_is_mstream(ctx)) {
 					req_stream_data = mtk_cam_req_get_s_data(req, stream_id, 1);
 					if (req_stream_data->frame_seq_no ==
@@ -5627,6 +5629,7 @@ void mtk_cam_dev_req_enqueue(struct mtk_cam_device *cam,
 							sensor_ctrl->sensorsetting_wq,
 							sensor_ctrl);
 				}
+				spin_unlock_irqrestore(&sensor_ctrl->drained_check_lock, flags);
 			}
 			req_stream_data = mtk_cam_req_get_s_data(req, stream_id, 0);
 			immediate_switch_sensor = mtk_cam_is_immediate_switch_req(req, stream_id);
@@ -7479,8 +7482,12 @@ int mtk_cam_ctx_stream_on(struct mtk_cam_ctx *ctx)
 			}
 		}
 	} else {
+		spin_lock(&ctx->processing_buffer_list.lock);
 		ctx->processing_buffer_list.cnt = 0;
+		spin_unlock(&ctx->processing_buffer_list.lock);
+		spin_lock(&ctx->composed_buffer_list.lock);
 		ctx->composed_buffer_list.cnt = 0;
+		spin_unlock(&ctx->composed_buffer_list.lock);
 		dev_dbg(cam->dev, "[M2M] reset processing_buffer_list.cnt & composed_buffer_list.cnt\n");
 	}
 	if (ctx->used_raw_num) {
@@ -8657,8 +8664,6 @@ static void mtk_cam_ctx_init(struct mtk_cam_ctx *ctx,
 
 	ctx->used_raw_num = 0;
 	ctx->used_raw_dev = 0;
-	ctx->processing_buffer_list.cnt = 0;
-	ctx->composed_buffer_list.cnt = 0;
 	ctx->is_first_cq_done = 0;
 	ctx->cq_done_status = 0;
 	ctx->session_created = 0;
@@ -8712,7 +8717,12 @@ static void mtk_cam_ctx_init(struct mtk_cam_ctx *ctx,
 	spin_lock_init(&ctx->processing_img_buffer_list.lock);
 	spin_lock_init(&ctx->watchdog_pipe_lock);
 	mutex_init(&ctx->cleanup_lock);
-
+	spin_lock(&ctx->processing_buffer_list.lock);
+	ctx->processing_buffer_list.cnt = 0;
+	spin_unlock(&ctx->processing_buffer_list.lock);
+	spin_lock(&ctx->composed_buffer_list.lock);
+	ctx->composed_buffer_list.cnt = 0;
+	spin_unlock(&ctx->composed_buffer_list.lock);
 	mtk_ctx_watchdog_init(ctx);
 }
 

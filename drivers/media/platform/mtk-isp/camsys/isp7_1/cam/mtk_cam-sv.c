@@ -1504,7 +1504,23 @@ int mtk_cam_sv_tg_disable(struct mtk_camsv_device *dev)
 
 	return ret;
 }
-
+void mtk_cam_sv_vf_reset(struct mtk_cam_ctx *ctx,
+	struct mtk_camsv_device *dev)
+{
+	if (CAMSV_READ_BITS(dev->base + REG_CAMSV_TG_VF_CON,
+			CAMSV_TG_VF_CON, VFDATA_EN)) {
+		CAMSV_WRITE_BITS(dev->base + REG_CAMSV_TG_VF_CON,
+			CAMSV_TG_VF_CON, VFDATA_EN, 0);
+		mtk_cam_sv_toggle_tg_db(dev);
+		dev_info(dev->dev, "sv_vf_reset vf_en off");
+		sv_reset(dev);
+		CAMSV_WRITE_BITS(dev->base + REG_CAMSV_TG_VF_CON,
+			CAMSV_TG_VF_CON, VFDATA_EN, 1);
+		mtk_cam_sv_toggle_tg_db(dev);
+		dev_info(dev->dev, "sv_vf_reset vf_en on");
+	}
+	dev_info(dev->dev, "sv_vf_reset");
+}
 int mtk_cam_sv_top_disable(struct mtk_camsv_device *dev)
 {
 	int ret = 0;
@@ -2152,6 +2168,7 @@ int mtk_cam_sv_dev_config(
 		camsv_dev->pipeline->master_pipe_id = ctx->pipe->id;
 		camsv_dev->pipeline->exp_order = exp_order;
 		camsv_dev->sof_count = 0;
+		camsv_dev->tg_cnt = 0;
 	} else {
 		user_ctl_idx = idx % MAX_SV_PIPES_PER_STREAM;
 		dev_sv = mtk_cam_find_sv_dev(cam, ctx->used_sv_dev[user_ctl_idx]);
@@ -2169,6 +2186,7 @@ int mtk_cam_sv_dev_config(
 		camsv_dev->pipeline->master_pipe_id = 0;
 		camsv_dev->pipeline->exp_order = 0;
 		camsv_dev->sof_count = 0;
+		camsv_dev->tg_cnt = 0;
 	}
 
 	/* reset enqueued status */
@@ -2599,7 +2617,7 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		readl_relaxed(camsv_dev->base_inner + REG_CAMSV_TG_PATH_CFG);
 	tg_cnt =
 		readl_relaxed(camsv_dev->base + REG_CAMSV_TG_INTER_ST);
-	tg_cnt = (tg_cnt & 0xff0000) >> 16;
+	tg_cnt = (camsv_dev->tg_cnt & 0xffffff00) + ((tg_cnt & 0xff000000) >> 24);
 	err_status = irq_status & INT_ST_MASK_CAMSV_ERR;
 	imgo_err_status = irq_status & CAMSV_INT_DMA_ERR_ST;
 	imgo_overr_status = irq_status & CAMSV_INT_IMGO_OVERR_ST;
@@ -2634,7 +2652,11 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		irq_info.irq_type |= (1 << CAMSYS_IRQ_FRAME_START);
 		camsv_dev->last_sof_time_ns = irq_info.ts_ns;
 		camsv_dev->sof_count++;
-		camsv_dev->tg_cnt = tg_cnt;
+		if (tg_cnt < camsv_dev->tg_cnt)
+			camsv_dev->tg_cnt = tg_cnt + BIT(8);
+		else
+			camsv_dev->tg_cnt = tg_cnt;
+		irq_info.tg_cnt = camsv_dev->tg_cnt;
 		camsv_dev->sof_timestamp = ktime_get_boottime_ns();
 		if (camsv_dev->pipeline->hw_scen &
 			MTK_CAMSV_SUPPORTED_SPECIAL_HW_SCENARIO)
