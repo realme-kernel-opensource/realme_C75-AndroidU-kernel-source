@@ -5818,16 +5818,18 @@ void mtk_cam_extisp_sv_frame_start(struct mtk_cam_ctx *ctx,
 				}
 				mtk_cam_sv_enquehwbuf(camsv_dev,
 					iova, stream_data->frame_seq_no);
+				if (seninf_padidx == PAD_SRC_GENERAL0) {
+					state_transition(state_sensor, E_STATE_EXTISP_SENSOR,
+							 E_STATE_EXTISP_SV_OUTER);
+					stream_data->state.sof_cnt_key = irq_info->tg_cnt;
+					dev_info(cam->dev, "[%s-ENQSV] ctx:%d/req:%d s:0x%x, cnt:%d/%d, key:%d\n",
+						__func__, ctx->stream_id, stream_data->frame_seq_no,
+						state_sensor->estate, camsv_dev_meta->tg_cnt,
+						camsv_dev_meta->sof_count,
+						stream_data->state.sof_cnt_key);
+				}
 			}
 		}
-		state_transition(state_sensor, E_STATE_EXTISP_SENSOR,
-				 E_STATE_EXTISP_SV_OUTER);
-		stream_data->state.sof_cnt_key = irq_info->tg_cnt;
-		dev_info(cam->dev, "[%s-ENQSV] ctx:%d/req:%d s:0x%x, cnt:%d %d/%d, key:%d\n",
-			__func__,
-			ctx->stream_id, stream_data->frame_seq_no, state_sensor->estate,
-			irq_info->tg_cnt, camsv_dev_meta->tg_cnt, camsv_dev_meta->sof_count,
-			stream_data->state.sof_cnt_key);
 	}
 	/* proc raw/yuv engine setting enque*/
 	if (state_out) {

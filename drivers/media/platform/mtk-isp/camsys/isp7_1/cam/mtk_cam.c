@@ -7102,7 +7102,7 @@ int mtk_cam_ctx_stream_on(struct mtk_cam_ctx *ctx)
 				2 + mtk_cam_feature_is_3_exposure(feature_active));
 		}
 		if (mtk_cam_is_ext_isp(ctx))
-			buf_require = max(buf_require, 2);
+			buf_require = 0;
 		if (mtk_cam_feature_is_time_shared(feature_active))
 			buf_require = max(buf_require, CAM_IMG_BUF_NUM);
 		if (mtk_cam_hw_is_dc(ctx)) {
