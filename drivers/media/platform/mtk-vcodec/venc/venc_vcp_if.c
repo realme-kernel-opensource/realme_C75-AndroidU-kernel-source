@@ -29,6 +29,7 @@
 #else
 #define IPI_TIMEOUT_MS          (5000U + ((mtk_vcodec_dbg | mtk_v4l2_dbg_level) ? 5000U : 0U))
 #endif
+#define IPI_FIRST_VENC_SETPARAM_TIMEOUT_MS    (60000U)
 
 struct vcp_enc_mem_list {
 	struct vcodec_mem_obj mem;
@@ -106,6 +107,7 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 	unsigned long timeout = 0;
 	struct share_obj obj;
 	unsigned int suspend_block_cnt = 0;
+	struct venc_ap_ipi_msg_set_param *ap_out_msg;
 
 	if (inst->vcu_inst.abort || inst->vcu_inst.daemon_pid != get_vcp_generation())
 		return -EIO;
@@ -171,6 +173,12 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 	if (!is_ack) {
 		/* wait for VCP's ACK */
 		timeout = msecs_to_jiffies(IPI_TIMEOUT_MS);
+		if (*(__u32 *)msg == AP_IPIMSG_ENC_SET_PARAM &&
+			inst->ctx->state == MTK_STATE_INIT) {
+			ap_out_msg = (struct venc_ap_ipi_msg_set_param *) msg;
+			if (ap_out_msg->param_id == VENC_SET_PARAM_ENC)
+				timeout = msecs_to_jiffies(IPI_FIRST_VENC_SETPARAM_TIMEOUT_MS);
+		}
 		ret = wait_event_timeout(inst->vcu_inst.wq_hd, inst->vcu_inst.signaled, timeout);
 		inst->vcu_inst.signaled = false;
 
