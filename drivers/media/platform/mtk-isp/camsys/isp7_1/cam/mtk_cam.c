@@ -2122,19 +2122,11 @@ static int mtk_cam_calc_pending_res(struct mtk_cam_device *cam,
 
 	/*worst case throughput prepare for stagger dynamic switch exposure num*/
 	if (mtk_cam_feature_is_stagger(res_cfg->raw_feature)) {
-		if (mtk_cam_feature_is_2_exposure(res_cfg->raw_feature)) {
-			dev_info(cam->dev,
-				 "%s:pipe(%d): worst case stagger 2exp prate (0x%x):%lld->%lld\n",
-				 __func__, pipe_id, res_cfg->raw_feature,
-				 prate, prate * 2);
-			prate = 2 * prate;
-		} else if (mtk_cam_feature_is_3_exposure(res_cfg->raw_feature)) {
-			dev_info(cam->dev,
-				 "%s:pipe(%d): worst case stagger 3exp prate (0x%x):%lld->%lld\n",
-				 __func__, pipe_id, res_cfg->raw_feature,
-				 prate, prate * 3);
-			prate = 3 * prate;
-		}
+		dev_info(cam->dev,
+			 "%s:pipe(%d): worst case stagger 2exp prate (0x%x):%lld->%lld\n",
+			 __func__, pipe_id, res_cfg->raw_feature,
+			 prate, 12 * prate / 10);
+		prate = 12 * prate / 10;
 	}
 
 	mtk_raw_resource_calc(cam, res_cfg, prate, res_cfg->res_plan, fps,

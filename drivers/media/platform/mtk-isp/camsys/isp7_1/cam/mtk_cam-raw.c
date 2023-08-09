@@ -584,22 +584,13 @@ mtk_cam_raw_try_res_ctrl(struct mtk_raw_pipeline *pipeline,
 
 	/*worst case throughput prepare for stagger dynamic switch exposure num*/
 	if (mtk_cam_feature_is_stagger(res_cfg->raw_feature)) {
-		if (mtk_cam_feature_is_2_exposure(res_cfg->raw_feature)) {
-			if (log)
-				dev_info(dev,
-					 "%s:%s:pipe(%d): worst case stagger 2exp prate (0x%x):%lld->%lld\n",
-					 __func__, dbg_str, pipeline->id, res_cfg->raw_feature,
-					 prate, prate * 3);
-			prate = 2 * prate;
-		} else if (mtk_cam_feature_is_3_exposure(res_cfg->raw_feature)) {
-			if (log)
-				dev_info(dev,
-					 "%s:%s:pipe(%d): worst case stagger 3exp prate (0x%x):%lld->%lld\n",
-					 __func__, dbg_str, pipeline->id, res_cfg->raw_feature,
-					 prate, prate * 3);
-			prate = 3 * prate;
-		}
+		dev_info(dev,
+			 "%s:%s:pipe(%d): worst case stagger prate (0x%x):%lld->%lld\n",
+			 __func__, dbg_str, pipeline->id, res_cfg->raw_feature,
+			 prate, 12 * prate / 10);
+		prate = 12 * prate / 10;
 	}
+
 	mtk_raw_resource_calc(dev_get_drvdata(pipeline->raw->cam_dev),
 			      res_cfg, prate,
 			      res_cfg->res_plan, fps,
