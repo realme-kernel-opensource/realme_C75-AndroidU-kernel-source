@@ -2152,8 +2152,10 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 #if ESD_RESET_SUPPORT
 			if (ret != 0) {
 				reset_by_user = is_reset_by_user(sd_to_ctx(sd));
-				if (!reset_by_user)
+				if (!reset_by_user){
 					reset_sensor(sd_to_ctx(sd));
+					ctx->esd_status_flag = 1;
+				}
 			}
 #endif
 		} else
@@ -2167,6 +2169,17 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 		 __func__, ret, seq_id, force_check, reset_by_user);
 
 	return (ret && reset_by_user);
+}
+
+int mtk_cam_seninf_get_csi_irq_status(struct v4l2_subdev *sd)
+{
+	int ret = 0;
+	struct seninf_ctx *ctx = sd_to_ctx(sd);
+
+	ret = (g_seninf_ops->_get_csi_irq_status(sd_to_ctx(sd)) & 0x7fff) | (ctx->esd_status_flag << 15);
+	ctx->esd_status_flag = 0;
+	dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ret);
+	return ret;
 }
 
 void mtk_cam_seninf_set_secure(struct v4l2_subdev *sd, int enable, unsigned int SecInfo_addr)

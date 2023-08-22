@@ -2673,6 +2673,18 @@ static int mtk_cam_seninf_debug(struct seninf_ctx *ctx)
  *}
  */
 
+static int mtk_cam_get_csi_irq_status(struct seninf_ctx *ctx)
+{
+	void *base_csi;
+	int ret = 0;
+
+	base_csi = ctx->reg_if_csi2[(uint32_t)ctx->seninfIdx];
+	ret = SENINF_READ_REG(base_csi, SENINF_CSI2_IRQ_STATUS);
+	dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ret);
+	SENINF_WRITE_REG(base_csi, SENINF_CSI2_IRQ_STATUS, 0xffffffff);
+	return ret;
+}
+
 static ssize_t mtk_cam_seninf_show_err_status(struct device *dev,
 				   struct device_attribute *attr,
 		char *buf)
@@ -3192,5 +3204,6 @@ struct mtk_cam_seninf_ops mtk_csi_phy_2_0 = {
 	.cam_mux_num = 16,
 	.pref_mux_num = 9,
 	._show_err_status = mtk_cam_seninf_show_err_status,
+	._get_csi_irq_status = mtk_cam_get_csi_irq_status,
 };
 
