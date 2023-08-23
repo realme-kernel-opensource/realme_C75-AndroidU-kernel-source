@@ -6682,6 +6682,7 @@ struct mtk_cam_ctx *mtk_cam_start_ctx(struct mtk_cam_device *cam,
 	ctx->ext_isp_meta_off = 0;
 	ctx->ext_isp_pureraw_off = 0;
 	ctx->ext_isp_procraw_off = 0;
+	ctx->enabled_watchdog_pipe = 0;
 	atomic_set(&ctx->running_s_data_cnt, 0);
 	init_completion(&ctx->session_complete);
 	init_completion(&ctx->m2m_complete);

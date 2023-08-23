@@ -2660,7 +2660,7 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		camsv_dev->sof_timestamp = ktime_get_boottime_ns();
 		if (camsv_dev->pipeline->hw_scen &
 			MTK_CAMSV_SUPPORTED_SPECIAL_HW_SCENARIO)
-			dev_info(dev,
+			dev_dbg(dev,
 		"%i status:0x%x(err:0x%x) drop:0x%x imgo_dma_err:0x%x_%x fbc:0x%x (imgo:0x%x) in/out:%d/%d tg_sen/dcif_set/tg_vf/tg_path:0x%x_%x_%x_%x\n",
 		camsv_dev->id,
 		irq_status, err_status,
