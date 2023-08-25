@@ -109,8 +109,9 @@ static int vcorefs_hold(struct act_arg_obj *arg)
 {
 	USB_BOOST_DBG("\n");
 
-	if (usb_icc_path)
-		icc_set_bw(usb_icc_path, 0, peak_bw);
+	/* disable dram boost */
+	/* if (usb_icc_path) */
+	/*	icc_set_bw(usb_icc_path, 0, peak_bw); */
 
 	return 0;
 }
@@ -119,8 +120,9 @@ static int vcorefs_release(struct act_arg_obj *arg)
 {
 	USB_BOOST_DBG("\n");
 
-	if (usb_icc_path)
-		icc_set_bw(usb_icc_path, 0, 0);
+	/* disable dram boost */
+	/* if (usb_icc_path) */
+	/*	icc_set_bw(usb_icc_path, 0, 0); */
 
 	return 0;
 }
