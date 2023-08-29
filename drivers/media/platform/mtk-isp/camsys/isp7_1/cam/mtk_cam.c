@@ -706,7 +706,8 @@ void *mtk_cam_get_vbuf_va(struct mtk_cam_ctx *ctx,
 }
 
 void mtk_cam_get_timestamp(struct mtk_cam_ctx *ctx,
-		struct mtk_cam_request_stream_data *s_data)
+		struct mtk_cam_request_stream_data *s_data,
+		struct mtk_cam_request_stream_data *s_data_fh)
 {
 	struct mtk_cam_buffer *buf;
 	struct vb2_buffer *vb;
@@ -752,8 +753,8 @@ void mtk_cam_get_timestamp(struct mtk_cam_ctx *ctx,
 		return;
 	}
 
-	fho_va = (u32 *)(s_data->working_buf->buffer.va +
-		s_data->working_buf->buffer.size - 64 * (subsample + 1));
+	fho_va = (u32 *)(s_data_fh->working_buf->buffer.va +
+		s_data_fh->working_buf->buffer.size - 64 * (subsample + 1));
 
 	pTimestamp = mtk_cam_get_timestamp_addr(vaddr);
 	if (!pTimestamp) {
@@ -905,7 +906,10 @@ STOP_SCAN:
 			s_data_mstream = NULL;
 
 		if (is_raw_subdev(pipe_id)) {
-			mtk_cam_get_timestamp(ctx, s_data);
+			if (s_data_mstream)
+				mtk_cam_get_timestamp(ctx, s_data, s_data_mstream);
+			else
+				mtk_cam_get_timestamp(ctx, s_data, s_data);
 			mtk_cam_req_dbg_works_clean(s_data);
 			mtk_cam_req_works_clean(s_data);
 
