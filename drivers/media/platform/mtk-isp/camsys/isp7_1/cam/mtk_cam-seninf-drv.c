@@ -14,6 +14,8 @@
 #include <linux/component.h>
 #include <linux/pm_opp.h>
 #include <linux/regulator/consumer.h>
+#include <uapi/linux/sched/types.h>
+#include <linux/sched.h>
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -576,6 +578,9 @@ static int seninf_core_probe(struct platform_device *pdev)
 		dev_info(dev, "%s: failed to start seninf kthread worker\n",
 			__func__);
 		core->seninf_kworker_task = NULL;
+	} else {
+		dev_info(dev, "%s: seninf kthread worker set prio to fifo\n", __func__);
+		sched_set_fifo(core->seninf_kworker_task);
 	}
 
 	dev_info(dev, "%s\n", __func__);
