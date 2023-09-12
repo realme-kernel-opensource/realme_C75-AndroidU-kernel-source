@@ -1580,8 +1580,28 @@ static int mtk_cam_seninf_set_ctrl(struct v4l2_ctrl *ctrl)
 	return ret;
 }
 
+static int mtk_cam_seninf_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct seninf_ctx *ctx = ctrl_hdl_to_ctx(ctrl->handler);
+	int ret;
+
+	switch (ctrl->id) {
+	case V4L2_CID_GET_CSI2_IRQ_STATUS:
+		ret = mtk_cam_seninf_get_csi_irq_status(&ctx->subdev, ctrl);
+		break;
+	default:
+		ret = 0;
+		dev_info(ctx->dev, "%s Unhandled id:0x%x\n",
+			 __func__, ctrl->id);
+		break;
+	}
+
+	return ret;
+}
+
 static const struct v4l2_ctrl_ops seninf_ctrl_ops = {
 	.s_ctrl = mtk_cam_seninf_set_ctrl,
+	.g_volatile_ctrl = mtk_cam_seninf_g_volatile_ctrl,
 };
 
 static int seninf_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
@@ -1664,6 +1684,16 @@ static const struct v4l2_ctrl_config cfg_s_stream = {
 	.step = 1,
 };
 
+static const struct v4l2_ctrl_config cfg_g_csi2_irq_status = {
+	.ops = &seninf_ctrl_ops,
+	.id = V4L2_CID_GET_CSI2_IRQ_STATUS,
+	.name = "get_csi2_irq_status",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY|V4L2_CTRL_FLAG_VOLATILE,
+	.max = 0x7fffffff,
+	.step = 1,
+};
+
 static int seninf_initialize_controls(struct seninf_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *handler;
@@ -1684,6 +1714,7 @@ static int seninf_initialize_controls(struct seninf_ctx *ctx)
 	v4l2_ctrl_new_custom(handler, &cfg_test_streamon, NULL);
 #endif
 	v4l2_ctrl_new_custom(handler, &cfg_s_stream, NULL);
+	v4l2_ctrl_new_custom(handler, &cfg_g_csi2_irq_status, NULL);
 
 
 	if (handler->error) {
@@ -2176,15 +2207,16 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 	return (ret && reset_by_user);
 }
 
-int mtk_cam_seninf_get_csi_irq_status(struct v4l2_subdev *sd)
+int mtk_cam_seninf_get_csi_irq_status(struct v4l2_subdev *sd, struct v4l2_ctrl *ctrl)
 {
-	int ret = 0;
 	struct seninf_ctx *ctx = sd_to_ctx(sd);
 
-	ret = (g_seninf_ops->_get_csi_irq_status(sd_to_ctx(sd)) & 0x7fff) | (ctx->esd_status_flag << 15);
+	ctrl->val  = (g_seninf_ops->_get_csi_irq_status(sd_to_ctx(sd)) & 0x7fff)
+					| (ctx->esd_status_flag << 15);
 	ctx->esd_status_flag = 0;
-	dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ret);
-	return ret;
+	dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ctrl->val);
+
+	return 0;
 }
 
 void mtk_cam_seninf_set_secure(struct v4l2_subdev *sd, int enable, unsigned int SecInfo_addr)

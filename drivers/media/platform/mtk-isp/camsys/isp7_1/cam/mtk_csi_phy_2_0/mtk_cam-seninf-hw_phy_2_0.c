@@ -2678,9 +2678,12 @@ static int mtk_cam_get_csi_irq_status(struct seninf_ctx *ctx)
 	void *base_csi;
 	int ret = 0;
 
+	if (!ctx->streaming)
+		return 0;
+
 	base_csi = ctx->reg_if_csi2[(uint32_t)ctx->seninfIdx];
 	ret = SENINF_READ_REG(base_csi, SENINF_CSI2_IRQ_STATUS);
-	dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ret);
+	//dev_info(ctx->dev,"SENINF%d_CSI2_IRQ_STATUS(0x%x)\n", ctx->seninfIdx, ret);
 	SENINF_WRITE_REG(base_csi, SENINF_CSI2_IRQ_STATUS, 0xffffffff);
 	return ret;
 }
