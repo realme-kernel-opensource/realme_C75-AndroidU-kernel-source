@@ -281,8 +281,6 @@ struct mtk_raw_pipeline {
 	s64 hw_mode_pending;
 	/* Frame sync */
 	int fs_config;
-	/* seninf debug status*/
-	int debug_status;
 };
 
 struct mtk_raw_device {

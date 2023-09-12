@@ -917,7 +917,6 @@ STOP_SCAN:
 				mtk_cam_req_dbg_works_clean(s_data_mstream);
 				mtk_cam_req_works_clean(s_data_mstream);
 			}
-			pipe->debug_status = mtk_cam_seninf_get_csi_irq_status(ctx->seninf);
 		}
 
 		if (del_job) {

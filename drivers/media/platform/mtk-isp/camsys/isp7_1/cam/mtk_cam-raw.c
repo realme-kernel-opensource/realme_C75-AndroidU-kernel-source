@@ -318,8 +318,6 @@ static int mtk_raw_get_ctrl(struct v4l2_ctrl *ctrl)
 			 __func__, pipeline->id, pipeline->sensor_mode_update);
 	} else if (ctrl->id == V4L2_CID_MTK_CAM_PDE_INFO) {
 		mtk_raw_pde_get_ctrl(ctrl);
-	} else if (ctrl->id == V4L2_CID_MTK_CAM_CAMSYS_HW_DEBUG_STATUS) {
-		ctrl->val = pipeline->debug_status;
 	} else if (ctrl->id == V4L2_CID_MTK_CAM_SYNC_ID) {
 		mutex_lock(&pipeline->res_config.resource_lock);
 		*ctrl->p_new.p_s64 = pipeline->sync_id;
@@ -872,7 +870,6 @@ static int mtk_raw_try_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MTK_CAM_SYNC_ID:
 	case V4L2_CID_MTK_CAM_HSF_EN:
 	case V4L2_CID_MTK_CAM_FRAME_SYNC:
-	case V4L2_CID_MTK_CAM_CAMSYS_HW_DEBUG_STATUS:
 		ret = 0;
 		break;
 	default:
@@ -948,9 +945,6 @@ static int mtk_raw_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_MTK_CAM_PDE_INFO:
 		ret = mtk_raw_pde_try_set_ctrl(ctrl, CAM_SET_CTRL);
-		break;
-	case V4L2_CID_MTK_CAM_CAMSYS_HW_DEBUG_STATUS:
-		ret = 0;
 		break;
 	default:
 		ret = mtk_raw_set_res_ctrl(pipeline->raw->devs[pipeline->id],
@@ -1201,17 +1195,6 @@ static struct v4l2_ctrl_config cfg_frame_sync = {
 	.max = 0x1,
 	.step = 1,
 	.def = 0,
-};
-
-static struct v4l2_ctrl_config cfg_hw_debug_status = {
-	.ops = &cam_ctrl_ops,
-	.id = V4L2_CID_MTK_CAM_CAMSYS_HW_DEBUG_STATUS,
-	.name = "hw debug status",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.flags = V4L2_CTRL_FLAG_VOLATILE|V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-	.max = 0x1fffffff,
-	.step = 1,
-	.def = 1,
 };
 
 void trigger_rawi(struct mtk_raw_device *dev, struct mtk_cam_ctx *ctx,
@@ -6077,8 +6060,6 @@ static void mtk_raw_pipeline_ctrl_setup(struct mtk_raw_pipeline *pipe)
 	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_frame_sync, NULL);
 
 	v4l2_ctrl_new_custom(ctrl_hdlr, &mstream_exposure, NULL);
-
-	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_hw_debug_status, NULL);
 	pipe->res_config.hwn_limit_max = hwn_limit.def;
 	pipe->res_config.frz_limit = frz_limit.def;
 	pipe->res_config.bin_limit = bin_limit.def;
