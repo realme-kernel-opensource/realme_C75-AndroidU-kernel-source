@@ -3148,8 +3148,6 @@ static int mtk_camsv_runtime_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	enable_irq(camsv_dev->irq);
-
 	dev_dbg(dev, "%s:enable clock\n", __func__);
 
 	for (i = 0; i < camsv_dev->num_clks; i++) {
@@ -3164,7 +3162,8 @@ static int mtk_camsv_runtime_resume(struct device *dev)
 			return ret;
 		}
 	}
-	sv_reset(camsv_dev);
+
+	enable_irq(camsv_dev->irq);
 
 	return 0;
 }
