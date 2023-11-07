@@ -519,14 +519,18 @@ int vcp_enc_ipi_handler(void *arg)
 			venc_vcp_ipi_send(inst, msg, sizeof(*msg), 1);
 			break;
 		case VCU_IPIMSG_ENC_POWER_ON:
+			mutex_lock(&ctx->dev->enc_hw_mutex);
 			venc_lock(ctx, msg->status, 0);
 			venc_encode_prepare(ctx, msg->status, &flags);
+			mutex_unlock(&ctx->dev->enc_hw_mutex);
 			msg->msg_id = AP_IPIMSG_ENC_POWER_ON_DONE;
 			venc_vcp_ipi_send(inst, msg, sizeof(*msg), 1);
 			break;
 		case VCU_IPIMSG_ENC_POWER_OFF:
+			mutex_lock(&ctx->dev->enc_hw_mutex);
 			venc_encode_unprepare(ctx, msg->status, &flags);
 			venc_unlock(ctx, msg->status);
+			mutex_unlock(&ctx->dev->enc_hw_mutex);
 			msg->msg_id = AP_IPIMSG_ENC_POWER_OFF_DONE;
 			venc_vcp_ipi_send(inst, msg, sizeof(*msg), 1);
 			break;

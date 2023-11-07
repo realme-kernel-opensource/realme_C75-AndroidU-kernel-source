@@ -3595,17 +3595,16 @@ void mtk_venc_unlock(struct mtk_vcodec_ctx *ctx, u32 hw_id)
 	if (hw_id >= MTK_VENC_HW_NUM)
 		return;
 
-	mtk_v4l2_debug(4, "ctx %p [%d] hw_id %d sem_cnt %d, lock: %d",
+	mtk_v4l2_debug(4, "ctx %p [%d] hw_id %d sem_cnt %d, lock type: %d, core_locked: %d",
 		ctx, ctx->id, hw_id, ctx->dev->enc_sem[hw_id].count,
-		ctx->dev->enc_hw_locked[hw_id]);
+		ctx->dev->enc_hw_locked[hw_id], ctx->core_locked[hw_id]);
 
 
-	if (hw_id < MTK_VENC_HW_NUM) {
+	if (hw_id < MTK_VENC_HW_NUM && ctx->core_locked[hw_id] == 1) {
 		ctx->core_locked[hw_id] = 0;
 		up(&ctx->dev->enc_sem[hw_id]);
+		ctx->dev->enc_hw_locked[hw_id] = VENC_LOCK_NONE;
 	}
-
-	ctx->dev->enc_hw_locked[hw_id] = VENC_LOCK_NONE;
 }
 
 int mtk_venc_lock(struct mtk_vcodec_ctx *ctx, u32 hw_id, bool sec)
@@ -3621,12 +3620,9 @@ int mtk_venc_lock(struct mtk_vcodec_ctx *ctx, u32 hw_id, bool sec)
 	else
 		lock = VENC_LOCK_NORMAL;
 
-	mtk_v4l2_debug(4, "ctx %p [%d] hw_id %d sem_cnt %d, sec: %d, lock: %d",
+	mtk_v4l2_debug(4, "ctx %p [%d] hw_id %d sem_cnt %d, sec: %d, lock type: %d, core_locked: %d",
 		ctx, ctx->id, hw_id, ctx->dev->enc_sem[hw_id].count, sec,
-		ctx->dev->enc_hw_locked[hw_id]);
-
-
-
+		ctx->dev->enc_hw_locked[hw_id], ctx->core_locked[hw_id]);
 
 	if (lock != ctx->dev->enc_hw_locked[hw_id])
 		ret = down_trylock(&ctx->dev->enc_sem[hw_id]);
