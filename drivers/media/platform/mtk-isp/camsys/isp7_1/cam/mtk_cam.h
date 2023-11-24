@@ -409,7 +409,6 @@ struct mtk_cam_watchdog_data {
 	atomic_t watchdog_dumped;
 	atomic_t watchdog_dump_cnt;
 	struct work_struct watchdog_work;
-	struct completion watchdog_complete;
 	u64 watchdog_time_diff_ns;
 };
 
