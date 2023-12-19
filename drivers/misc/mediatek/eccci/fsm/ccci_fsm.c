@@ -23,6 +23,9 @@
 #include "ccci_platform.h"
 #include "md_sys1_platform.h"
 #include "modem_sys.h"
+#if IS_ENABLED(CONFIG_MTK_DEVAPC)
+#include <linux/soc/mediatek/devapc_public.h>
+#endif
 
 static struct ccci_fsm_ctl *ccci_fsm_entries[MAX_MD_NUM];
 
@@ -841,6 +844,56 @@ struct ccci_fsm_ctl *fsm_get_entity_by_md_id(int md_id)
 }
 EXPORT_SYMBOL(fsm_get_entity_by_md_id);
 
+#if IS_ENABLED(CONFIG_MTK_DEVAPC)
+void ccci_dump_md_in_devapc(char *user_info)
+{
+	struct ccci_modem *md = NULL;
+
+	CCCI_NORMAL_LOG(0, FSM, "%s called by %s\n", __func__, user_info);
+	md = ccci_md_get_modem_by_id(MD_SYS1);
+	if (md != NULL) {
+		CCCI_NORMAL_LOG(0, FSM, "%s dump start\n", __func__);
+		md->ops->dump_info(md, DUMP_FLAG_CCIF_REG | DUMP_FLAG_CCIF |
+			DUMP_FLAG_REG | DUMP_FLAG_QUEUE_0_1 |
+			DUMP_MD_BOOTUP_STATUS, NULL, 0);
+	} else
+		CCCI_NORMAL_LOG(0, FSM, "%s error, md is NULL!\n", __func__);
+	CCCI_NORMAL_LOG(0, FSM, "%s exit\n", __func__);
+}
+
+static enum devapc_cb_status devapc_dump_adv_cb(uint32_t vio_addr)
+{
+	int count;
+
+	CCCI_NORMAL_LOG(0, FSM,
+		"[%s] vio_addr: 0x%x; is normal mdee: %d\n",
+		__func__, vio_addr, ccci_fsm_is_normal_mdee());
+
+	if (ccci_fsm_get_md_state(MD_SYS1) == EXCEPTION &&
+		ccci_fsm_is_normal_mdee()) {
+		count = ccci_fsm_increase_devapc_dump_counter();
+
+		CCCI_NORMAL_LOG(0, FSM,
+			"[%s] count: %d\n", __func__, count);
+
+		if (count == 1)
+			ccci_dump_md_in_devapc((char *)__func__);
+
+		return DEVAPC_NOT_KE;
+
+	} else {
+		ccci_dump_md_in_devapc((char *)__func__);
+		ccci_md_force_assert(0, MD_FORCE_ASSERT_BY_AP_Q0_BLOCKED, NULL, 0);
+		return DEVAPC_NOT_KE;
+	}
+}
+
+static struct devapc_vio_callbacks devapc_md_vio_handle = {
+	.id = INFRA_SUBSYS_MD,
+	.debug_dump_adv = devapc_dump_adv_cb,
+};
+#endif
+
 int ccci_fsm_init(int md_id)
 {
 	struct ccci_fsm_ctl *ctl = NULL;
@@ -902,6 +955,10 @@ int ccci_fsm_init(int md_id)
 	fsm_ee_init(&ctl->ee_ctl);
 	fsm_monitor_init(&ctl->monitor_ctl);
 	fsm_sys_init();
+
+#if IS_ENABLED(CONFIG_MTK_DEVAPC)
+	register_devapc_vio_callback(&devapc_md_vio_handle);
+#endif
 
 	ccci_fsm_entries[md_id] = ctl;
 	return 0;

@@ -723,6 +723,66 @@ static void dpmaif_dump_register(struct hif_dpmaif_ctrl *hif_ctrl, int buf_type)
 		hif_ctrl->dpmaif_pd_sram_base + 0x00,
 		0x184);
 
+	//0x1022_d000, 0xe4
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF ul_pd register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base, 0xe4);
+
+	//0x1001_4000, 0x100
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF ul_ao register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_ao_ul_base, 0x100);
+
+	//0x1022_d100, 0x100
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF dl_pd register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base + 0x100, 0x100);
+
+	//0x1001_4400, 0x78
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF dl_ao register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_ao_ul_base + 0x400, 0x78);
+
+	//0x1022_d400, 0x100
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF ap misc register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base + 0x400, 0x100);
+
+	//0x1022_c000, 0x58
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF md misc register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_md_misc_base, 0x58);
+
+	//0x1001_4800, 0x68
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF ao misc register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_ao_ul_base + 0x800, 0x68);
+
+	//0x1022_dc00, 0x100
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF dl_pd_sram register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base + 0xc00, 0x100);
+
+	//0x1022_dd00, 0x100
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF ul_pd_sram register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base + 0xd00, 0x100);
+
+	//0x1022_de00, 0x6c
+	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
+		"dump AP DPMAIF pd_sram_misc register\n");
+	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
+		hif_ctrl->dpmaif_pd_ul_base + 0xe00, 0x6c);
+
 	dpmaif_dump_rx_pit(hif_ctrl);
 
 #ifdef ENABLE_DPMAIF_ISR_LOG
