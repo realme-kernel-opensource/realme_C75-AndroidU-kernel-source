@@ -907,7 +907,8 @@ static void devapc_extra_handler(int slave_type, const char *vio_master,
 	dispatch_key[sizeof(dispatch_key) - 1] = '\0';
 
 	/* Callback func for vio master */
-	if (!strncasecmp(vio_master, "MD", 2))
+	if (!strncasecmp(vio_master, "MD", 2) ||
+			!strncasecmp(vio_master, "DPMAIF_M", 8))
 		id = INFRA_SUBSYS_MD;
 
 	else if (!strncasecmp(vio_master, "CONN", 4) ||
