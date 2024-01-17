@@ -628,6 +628,13 @@ static int vidioc_venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_MTK_VCP_PROP:
 		mtk_vcodec_set_log(ctx->dev, ctrl->p_new.p_char, MTK_VCODEC_LOG_INDEX_PROP);
 		break;
+	case V4L2_CID_MPEG_MTK_ENCODE_CHROMA_QP:
+		mtk_v4l2_debug(2,
+			"V4L2_CID_MPEG_MTK_ENCODE_CHROMA_QP: cbqp(%d) crqp(%d)",
+			ctrl->p_new.p_s32[0], ctrl->p_new.p_s32[1]);
+		p->cb_qp_offset = ctrl->p_new.p_s32[0];
+		p->cr_qp_offset = ctrl->p_new.p_s32[1];
+		break;
 	default:
 		mtk_v4l2_debug(4, "ctrl-id=%d not support!", ctrl->id);
 		ret = -EINVAL;
@@ -1194,6 +1201,9 @@ static void mtk_venc_set_param(struct mtk_vcodec_ctx *ctx,
 	param->framelvl_qp = enc_params->framelvl_qp;
 	param->ip_qpdelta = enc_params->ip_qpdelta;
 	param->qp_control_mode = enc_params->qp_control_mode;
+
+	param->cb_qp_offset = enc_params->cb_qp_offset;
+	param->cr_qp_offset = enc_params->cr_qp_offset;
 }
 
 static int vidioc_venc_subscribe_evt(struct v4l2_fh *fh,
@@ -3477,6 +3487,22 @@ int mtk_vcodec_enc_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 	}
 
 	v4l2_ctrl_handler_setup(&ctx->ctrl_hdl);
+
+	ctx->enc_params.cb_qp_offset = 99;
+	ctx->enc_params.cr_qp_offset = 99;
+
+	memset(&cfg, 0, sizeof(cfg));
+	cfg.id = V4L2_CID_MPEG_MTK_ENCODE_CHROMA_QP;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	cfg.flags = V4L2_CTRL_FLAG_WRITE_ONLY;
+	cfg.name = "Video encode Chroma QP";
+	cfg.min = -12;
+	cfg.max = 99;
+	cfg.step = 1;
+	cfg.def = 99;
+	cfg.dims[0] = 2;
+	cfg.ops = ops;
+	mtk_vcodec_enc_custom_ctrls_check(handler, &cfg, NULL);
 
 	return 0;
 }
