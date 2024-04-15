@@ -10,6 +10,8 @@
 #include <linux/mtk_vcu_controls.h>
 #include <linux/delay.h>
 #include <soc/mediatek/smi.h>
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 
 #include "../mtk_vcodec_drv.h"
 #include "../mtk_vcodec_util.h"
@@ -368,6 +370,7 @@ int vcp_enc_ipi_handler(void *arg)
 	struct list_head *p, *q;
 	struct mtk_vcodec_ctx *temp_ctx;
 	int msg_valid = 0;
+	struct sched_param sched_p = { .sched_priority = MTK_VCODEC_IPI_THREAD_PRIORITY };
 
 	mtk_v4l2_debug_enter();
 	BUILD_BUG_ON(sizeof(struct venc_ap_ipi_msg_init) > SHARE_BUF_SIZE);
@@ -386,6 +389,8 @@ int vcp_enc_ipi_handler(void *arg)
 	BUILD_BUG_ON(sizeof(struct venc_vcu_ipi_msg_waitisr) > SHARE_BUF_SIZE);
 	BUILD_BUG_ON(
 		sizeof(struct venc_vcu_ipi_mem_op) > SHARE_BUF_SIZE);
+
+	sched_setscheduler(current, SCHED_FIFO, &sched_p);
 
 	do {
 		ret = wait_event_interruptible(dev->mq.wq, atomic_read(&dev->mq.cnt) > 0);
