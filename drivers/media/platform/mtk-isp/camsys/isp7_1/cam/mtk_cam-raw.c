@@ -1426,17 +1426,34 @@ static void reset_reg(struct mtk_raw_device *dev)
 	writel(0, dev->base_inner + REG_CTL_SW_SUB_CTL);
 	writel(0, dev->base + REG_CTL_SW_SUB_CTL);
 
+	writel(0, dev->base + REG_CTL_RAW_INT_EN);
+	writel(0, dev->base + REG_CTL_RAW_INT2_EN);
+	writel(0, dev->base + REG_CTL_RAW_INT6_EN);
+	writel(0, dev->base + REG_CTL_RAW_INT7_EN);
+	writel(0, dev->base_inner + REG_CTL_RAW_INT_EN);
+	writel(0, dev->base_inner + REG_CTL_RAW_INT2_EN);
+	writel(0, dev->base_inner + REG_CTL_RAW_INT6_EN);
+	writel(0, dev->base_inner + REG_CTL_RAW_INT7_EN);
+
 	wmb(); /* make sure committed */
 
-	dev_dbg(dev->dev,
-			 "[%s--] CQ_EN/SW_SUB_CTL/SW_DONE [in] 0x%x/0x%x/0x%x [out] 0x%x/0x%x/0x%x\n",
+	dev_info(dev->dev,
+			 "[%s--] CQ_EN/SW_SUB_CTL/SW_DONE/INT_EN/INT_EN2/INT_EN6/INT_EN7 [in] 0x%x/0x%x/0x%x/0x%x/0x%x/0x%x/0x%x [out] 0x%x/0x%x/0x%x/0x%x/0x%x/0x%x/0x%x\n",
 			 __func__,
 			 readl_relaxed(dev->base_inner + REG_CQ_EN),
 			 readl_relaxed(dev->base_inner + REG_CTL_SW_SUB_CTL),
 			 readl_relaxed(dev->base_inner + REG_CTL_SW_PASS1_DONE),
+			 readl_relaxed(dev->base_inner + REG_CTL_RAW_INT_EN),
+			 readl_relaxed(dev->base_inner + REG_CTL_RAW_INT2_EN),
+			 readl_relaxed(dev->base_inner + REG_CTL_RAW_INT6_EN),
+			 readl_relaxed(dev->base_inner + REG_CTL_RAW_INT7_EN),
 			 readl_relaxed(dev->base + REG_CQ_EN),
 			 readl_relaxed(dev->base + REG_CTL_SW_SUB_CTL),
-			 readl_relaxed(dev->base + REG_CTL_SW_PASS1_DONE));
+			 readl_relaxed(dev->base + REG_CTL_SW_PASS1_DONE),
+			 readl_relaxed(dev->base + REG_CTL_RAW_INT_EN),
+			 readl_relaxed(dev->base + REG_CTL_RAW_INT2_EN),
+			 readl_relaxed(dev->base + REG_CTL_RAW_INT6_EN),
+			 readl_relaxed(dev->base + REG_CTL_RAW_INT7_EN));
 }
 
 void dump_aa_info(struct mtk_cam_ctx *ctx,
@@ -1710,7 +1727,11 @@ static void init_dma_threshold(struct mtk_raw_device *dev)
 		mtk_smi_larb_ultra_dis(&dev->larb_pdev->dev, true);
 		mtk_smi_larb_ultra_dis(&yuv_dev->larb_pdev->dev, true);
 	} else {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		writel_relaxed(RAW_WDMA_PORT, cam_dev->base + raw_urgent);
+#else
 		writel_relaxed(RAW_WDMA_PORT | RAW_RAWIR2_PORT, cam_dev->base + raw_urgent);
+#endif
 		writel_relaxed(YUV_WDMA_PORT, cam_dev->base + yuv_urgent);
 
 		mtk_smi_larb_ultra_dis(&dev->larb_pdev->dev, false);
@@ -3137,7 +3158,7 @@ static int mtk_raw_available_resource(struct mtk_raw *raw)
 				res_status |= 1 << j;
 		}
 	}
-	dev_dbg(raw->cam_dev, "%s raw_status:0x%x Available Engine:A/B/C:%d/%d/%d\n",
+	dev_info(raw->cam_dev, "%s raw_status:0x%x Available Engine:A/B/C:%d/%d/%d\n",
 		 __func__, res_status,
 			!(res_status & (1 << MTKCAM_SUBDEV_RAW_0)),
 			!(res_status & (1 << MTKCAM_SUBDEV_RAW_1)),
@@ -3364,7 +3385,11 @@ int mtk_cam_raw_select(struct mtk_cam_ctx *ctx,
 			selected = true;
 		}
 	} else if (pipe->res_config.raw_num_used == 2) {
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		for (m = MTKCAM_SUBDEV_RAW_0; m < MTKCAM_SUBDEV_RAW_2; m++) {
+		#else
 		for (m = MTKCAM_SUBDEV_RAW_0; m >= MTKCAM_SUBDEV_RAW_0; m--) {
+		#endif
 			mask = (1 << m) | (1 << (m + 1));
 			if (!(raw_status & mask)) {
 				pipe->enabled_raw |= mask;
@@ -6060,6 +6085,7 @@ static void mtk_raw_pipeline_ctrl_setup(struct mtk_raw_pipeline *pipe)
 	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_frame_sync, NULL);
 
 	v4l2_ctrl_new_custom(ctrl_hdlr, &mstream_exposure, NULL);
+
 	pipe->res_config.hwn_limit_max = hwn_limit.def;
 	pipe->res_config.frz_limit = frz_limit.def;
 	pipe->res_config.bin_limit = bin_limit.def;
@@ -6085,7 +6111,7 @@ static int mtk_raw_pipeline_register(unsigned int id, struct device *dev,
 	int ret;
 
 	pipe->id = id;
-	pipe->dynamic_exposure_num_max = 3;
+	pipe->dynamic_exposure_num_max = 1;
 
 	/* Initialize subdev */
 	v4l2_subdev_init(sd, &mtk_raw_subdev_ops);
@@ -6330,7 +6356,7 @@ static int mtk_raw_runtime_suspend(struct device *dev)
 	int i;
 	unsigned int pr_detect_count;
 
-	dev_dbg(dev, "%s:disable clock\n", __func__);
+	dev_info(dev, "%s:disable clock\n", __func__);
 	dev_dbg(dev, "%s:drvdata->default_printk_cnt = %d\n", __func__,
 			drvdata->default_printk_cnt);
 
@@ -6366,7 +6392,7 @@ static int mtk_raw_runtime_resume(struct device *dev)
 	if (pr_detect_count < KERNEL_LOG_MAX)
 		set_detect_count(KERNEL_LOG_MAX);
 
-	dev_dbg(dev, "%s:enable clock\n", __func__);
+	dev_info(dev, "%s:enable clock\n", __func__);
 
 	for (i = 0; i < drvdata->num_clks; i++) {
 		ret = clk_prepare_enable(drvdata->clks[i]);

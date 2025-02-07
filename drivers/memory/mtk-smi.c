@@ -79,6 +79,7 @@
 #define INT_SMI_LARB_OSTD_MON_PORT(p)	(0x500 + SMI_LARB_OSTD_MON_PORT(p))
 #define INT_SMI_LARB_OSTDL_PORTx(id)	(0x500 + SMI_LARB_OSTDL_PORT + ((id) << 2))
 #define SMI_LARB_STAT			(0x0)
+#define SMI_LARB_SPM_ULTRA_MASK		(0x80)
 /* SMI COMMON */
 #define SMI_BUS_SEL			0x220
 #define SMI_BUS_LARB_SHIFT(larbid)	((larbid) << 1)
@@ -87,6 +88,9 @@
 #define SMI_CLAMP_EN_CLR		(0x3C8)
 #define SMI_DEBUG_MISC			(0x440)
 #define SMI_DEBUG_S(s)		(0x400 + ((s) << 2))
+#define SMI_WRR_REG0		(0x228)
+#define SMI_Mx_RWULTRA_WRRy(x, rw, y) \
+		(0x308 + (((x) - 1) << 4) + ((rw) << 3) + ((y) << 2))
 /* All are MMU0 defaultly. Only specialize mmu1 here. */
 #define F_MMU1_LARB(larbid)		(0x1 << SMI_BUS_LARB_SHIFT(larbid))
 #define SMI_L1LEN			0x100
@@ -101,7 +105,7 @@
 #define SMI_LARB_PORT_NR_MAX		32
 #define SMI_COMMON_LARB_NR_MAX		8
 #define MTK_COMMON_NR_MAX	20
-#define SMI_LARB_MISC_NR		5
+#define SMI_LARB_MISC_NR		8
 #define SMI_COMMON_MISC_NR		8
 struct mtk_smi_reg_pair {
 	u16	offset;
@@ -168,6 +172,7 @@ struct mtk_smi_larb { /* larb: local arbiter */
 	const struct mtk_smi_larb_gen	*larb_gen;
 	int				larbid;
 	int				comm_port_id[LARB_MAX_COMMON];
+	int				suspend_check_port[LARB_MAX_COMMON];
 	u32				*mmu;
 
 	unsigned char			*bank;
@@ -177,7 +182,7 @@ struct mtk_smi_larb { /* larb: local arbiter */
 #define MAX_LARB_FOR_CLAMP		(6)
 #define RESET_CELL_NUM			(2)
 #define MAX_PD_CHECK_DEV_NUM	(2)
-#define SMI_OSTD_CNT_MASK	(0x1FFE000)
+#define SMI_OSTD_CNT_MASK	(0x7FFE000)
 
 struct mtk_smi_pd_log {
 	u8 power_status;
@@ -1116,11 +1121,12 @@ mtk_smi_larb_mt6833_bwl[MTK_LARB_NR_MAX][SMI_LARB_PORT_NR_MAX] = {
 
 static u8
 mtk_smi_larb_mt6768_bwl[MTK_LARB_NR_MAX][SMI_LARB_PORT_NR_MAX] = {
-	{0x1f, 0x1f, 0x1f, 0x7, 0x7, 0x4, 0x4, 0x1f}, /* LARB0 */ /* from smi_larb0_init_pair */
-	{}, /* LARB1 */
-	{}, /* LARB2 */
-	{}, /* LARB3 */
-	{}, /* LARB4 */
+	{0x1f, 0x1f, 0x1f, 0x7, 0x7, 0x4, 0x4, 0x1f}, /* LARB0 */
+	{0x9, 0x9, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x6}, /* LARB1 */
+	{0xc, 0x1, 0x4, 0x4, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1}, /* LARB2 */
+	{0x16, 0x14, 0x2, 0x2, 0x2, 0x2, 0x4, 0x2, 0x2, 0x2, 0x2, 0x2, 0x4, 0x4, 0x4,
+	 0x2, 0x2, 0x2, 0x2, 0x2, 0x2}, /* LARB3 */
+	{0x3, 0x1, 0x1, 0x1, 0x1, 0x5, 0x3, 0x1, 0x1, 0x1, 0x6}, /* LARB4 */
 };
 
 static u8
@@ -1551,15 +1557,15 @@ mtk_smi_larb_mt6855_misc[MTK_LARB_NR_MAX][SMI_LARB_MISC_NR] = {
 
 static struct mtk_smi_reg_pair
 mtk_smi_larb_mt6768_misc[MTK_LARB_NR_MAX][SMI_LARB_MISC_NR] = {
-	{/* {SMI_LARB_CMD_THRT_CON, 0x370223}, {SMI_LARB_SW_FLAG, 0x1},
-	  * {SMI_LARB_SPM_ULTRA_MASK, 0xffffffc0}, {SMI_LARB_WRR_PORT(0), 0xb},
-	  * {SMI_LARB_WRR_PORT(1), 0xb}, {SMI_LARB_WRR_PORT(2), 0xb},
-	  * {SMI_LARB_WRR_PORT(3), 0xb}, {SMI_LARB_WRR_PORT(4), 0xb},
-	  * TODO macro not defined */}, /*LARB0*/ /* from smi_larb0_conf_pair */
-	{}, /*LARB1*/
-	{}, /*LARB2*/
-	{}, /*LARB3*/
-	{}, /*LARB4*/
+	{{SMI_LARB_CMD_THRT_CON, 0x370223}, {SMI_LARB_SW_FLAG, 0x1},
+	 {SMI_LARB_SPM_ULTRA_MASK, 0xffffffc0}, {SMI_LARB_WRR_PORTx(0), 0xb},
+	 {SMI_LARB_WRR_PORTx(1), 0xb}, {SMI_LARB_WRR_PORTx(2), 0xb},
+	 {SMI_LARB_WRR_PORTx(3), 0xb}, {SMI_LARB_WRR_PORTx(4), 0xb},}, /*LARB0*/
+	{{SMI_LARB_CMD_THRT_CON, 0x300223}, {SMI_LARB_SW_FLAG, 0x1},}, /*LARB1*/
+	{{SMI_LARB_CMD_THRT_CON, 0x300223}, {SMI_LARB_SW_FLAG, 0x1},
+	 {SMI_LARB_SPM_ULTRA_MASK, 0xffffc000},}, /*LARB2*/
+	{{SMI_LARB_CMD_THRT_CON, 0x370223}, {SMI_LARB_SW_FLAG, 0x1},}, /*LARB3*/
+	{{SMI_LARB_CMD_THRT_CON, 0x370223}, {SMI_LARB_SW_FLAG, 0x1},}, /*LARB4*/
 };
 
 static struct mtk_smi_reg_pair
@@ -1761,7 +1767,6 @@ static const struct mtk_smi_larb_gen mtk_smi_larb_mt6768 = {
 	.port_in_larb_gen2 = {8, 9, 12, 21, 11,},
 	.config_port                = mtk_smi_larb_config_port_gen2_general,
 	.larb_direct_to_common_mask = 0,
-				      /*skip larb: none TODO*/
 	.has_bwl                    = true,
 	.bwl                        = (u8 *)mtk_smi_larb_mt6768_bwl,
 	.misc = (struct mtk_smi_reg_pair *)mtk_smi_larb_mt6768_misc,
@@ -1950,6 +1955,9 @@ static int mtk_smi_larb_probe(struct platform_device *pdev)
 		larb->comm_port_id[i] = -1;
 		of_property_read_u32_index(dev->of_node, "mediatek,comm-port-id",
 						i, &larb->comm_port_id[i]);
+
+		of_property_read_u32_index(dev->of_node, "mediatek,suspend-check-port",
+						i, &larb->suspend_check_port[i]);
 	}
 
 
@@ -2053,8 +2061,8 @@ static u32 mtk_smi_common_ostd_check(struct mtk_smi *common,
 	for (i = 0; i < SMI_COMMON_LARB_NR_MAX; i++) {
 		if ((check_port >> i) & 1) {
 			val = readl_relaxed(common->base + SMI_DEBUG_S(i));
-			pr_notice("[SMI] common%d: %#x=%#x, power status = %ld\n",
-				common->commid, SMI_DEBUG_S(i), val, flags);
+			//pr_notice("[SMI] common%d: %#x=%#x, power status = %ld\n",
+			//	common->commid, SMI_DEBUG_S(i), val, flags);
 			if (val & SMI_OSTD_CNT_MASK) {
 				pr_notice("[SMI] common%d suspend check fail, power status = %ld\n",
 					common->commid, flags);
@@ -2192,6 +2200,8 @@ static int __maybe_unused mtk_smi_larb_suspend(struct device *dev)
 {
 	struct mtk_smi_larb *larb = dev_get_drvdata(dev);
 	const struct mtk_smi_larb_gen *larb_gen = larb->larb_gen;
+	int i, ret;
+	struct mtk_smi *common;
 
 	atomic_dec(&larb->smi.ref_count);
 	if (log_level & 1 << log_config_bit)
@@ -2209,6 +2219,15 @@ static int __maybe_unused mtk_smi_larb_suspend(struct device *dev)
 	if (readl_relaxed(larb->base + SMI_LARB_STAT)) {
 		pr_notice("[SMI]larb:%d, suspend but busy\n", larb->larbid);
 		raw_notifier_call_chain(&smi_driver_notifier_list, larb->larbid, larb);
+	}
+
+	for (i = 0; i < LARB_MAX_COMMON; i++) {
+		if (!larb->smi_common_dev[i] || !larb->suspend_check_port[i])
+			break;
+		common = dev_get_drvdata(larb->smi_common_dev[i]);
+		ret = mtk_smi_common_ostd_check(common, larb->suspend_check_port[i], 0xf);
+		if (ret)
+			raw_notifier_call_chain(&smi_driver_notifier_list, larb->larbid, larb);
 	}
 
 	if (larb_gen->sleep_ctrl)
@@ -2363,7 +2382,7 @@ static u16 mtk_smi_common_mt6855_bwl[MTK_COMMON_NR_MAX][SMI_COMMON_LARB_NR_MAX] 
 };
 
 static u16 mtk_smi_common_mt6768_bwl[MTK_COMMON_NR_MAX][SMI_COMMON_LARB_NR_MAX] = {
-	{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+	{0x1ba5, 0x1000, 0x15d3, 0x1000, 0x1000, 0x0, 0x0, 0x0},
 };
 
 static u16 mtk_smi_common_mt6765_bwl[MTK_COMMON_NR_MAX][SMI_COMMON_LARB_NR_MAX] = {
@@ -2599,10 +2618,12 @@ mtk_smi_common_mt6855_misc[MTK_COMMON_NR_MAX][SMI_COMMON_MISC_NR] = {
 
 static struct mtk_smi_reg_pair /*TODO complete golden setting; macro not defined */
 mtk_smi_common_mt6768_misc[MTK_COMMON_NR_MAX][SMI_COMMON_MISC_NR] = {
-	{/* {SMI_L1LEN, 0xb}, {SMI_WRR_REG0, 0x30c30c},
-	  * {SMI_DCM, 0x4fd}, {SMI_DUMMY, 0x1}, from smi_comm_conf_pair */},
-	/* 0:SMI_COMMON */
-	{{SMI_L1LEN, 0xa}, {SMI_PREULTRA_MASK1, 0x2105}, {SMI_DUMMY, 0x1},},
+	{{SMI_L1LEN, 0xb}, {SMI_WRR_REG0, 0x30c30c}, {SMI_DCM, 0x4fd},
+	 {SMI_Mx_RWULTRA_WRRy(1, 0, 0), 0x30c30c},
+	 {SMI_Mx_RWULTRA_WRRy(1, 1, 0), 0x30c30c},
+	 {SMI_Mx_RWULTRA_WRRy(2, 0, 0), 0x30c30c},
+	 {SMI_Mx_RWULTRA_WRRy(2, 1, 0), 0x30c30c},
+	 {SMI_DUMMY, 0x1},},/* 0:SMI_COMMON */
 };
 
 static struct mtk_smi_reg_pair /*TODO complete golden setting; macro not defined */

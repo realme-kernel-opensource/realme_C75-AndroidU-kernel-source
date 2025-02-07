@@ -53,6 +53,7 @@ enum RPC_OP_ID {
 	IPC_RPC_TRNG = 0x4012,
 	IPC_RPC_QUERY_CARD_TYPE = 0x4013,
 	IPC_RPC_AMMS_DRDI_CONTROL = 0x4014,
+	IPC_RPC_SAVE_MD_CAPID = 0x4015,
 	IPC_RPC_IT_OP = 0x4321,
 };
 
@@ -255,6 +256,10 @@ extern bool is_clk_buf_from_pmic(void);
 extern void clk_buf_get_rf_drv_curr(void *rf_drv_curr);
 extern void clk_buf_save_afc_val(unsigned int afcdac);
 extern int ccci_get_adc_val(void);
-
+//#ifdef OPLUS_FEATURE_THREESTATE_GPIO
+//NETWORK.RF, 2024/07/06, Add for tristate gpio
+extern unsigned int is_project(int project);
+extern int gpio_get_tristate_input(unsigned int pin);
+//#endif /* OPLUS_FEATURE_THREESTATE_GPIO */
 
 #endif	/* __PORT_RPC_H__ */

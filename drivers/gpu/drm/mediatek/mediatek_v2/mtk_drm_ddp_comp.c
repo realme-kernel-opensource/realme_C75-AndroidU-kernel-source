@@ -88,7 +88,7 @@
 
 #define MT6768_HRT_URGENT_CTL_SEL_ALL             REG_FLD_MSB_LSB(7, 0)
 	#define MT6768_HRT_URGENT_CTL_SEL_RDMA0       REG_FLD_MSB_LSB(0, 0)
-	#define MT6768_HRT_URGENT_CTL_SEL_WDMA0       REG_FLD_MSB_LSB(2, 2)
+	#define MT6768_HRT_URGENT_CTL_SEL_WDMA0       REG_FLD_MSB_LSB(1, 1)
 	#define MT6768_HRT_URGENT_CTL_SEL_DSI0        REG_FLD_MSB_LSB(5, 5)
 
 #define MT6768_HRT_URGENT_CTL_VAL_ALL             REG_FLD_MSB_LSB(15, 8)
@@ -146,7 +146,62 @@
 
 #define MTK_DDP_COMP_USER "DISP"
 
+#if defined(CONFIG_PXLW_IRIS)
+int mtk_ddp_write(struct mtk_ddp_comp *comp, unsigned int value,
+		   unsigned int offset, void *handle)
+{
+	int ret = 0;
+#ifndef DRM_CMDQ_DISABLE
+	ret = cmdq_pkt_write((struct cmdq_pkt *)handle, comp->cmdq_base,
+		       comp->regs_pa + offset, value, ~0);
+	if (ret < 0)
+		DDPPR_ERR("%s:%d, cmdq error! ret:%d\n",
+				__func__, __LINE__, ret);
+#else
+	writel(value, comp->regs + offset);
+#endif
+	return ret;
+}
 
+int mtk_ddp_write_relaxed(struct mtk_ddp_comp *comp, unsigned int value,
+			   unsigned int offset, void *handle)
+{
+	int ret = 0;
+#ifndef DRM_CMDQ_DISABLE
+	if (handle) {
+		ret = cmdq_pkt_write((struct cmdq_pkt *)handle, comp->cmdq_base,
+		       comp->regs_pa + offset, value, ~0);
+		if (ret < 0)
+			DDPPR_ERR("%s:%d, cmdq error! ret:%d\n",
+					__func__, __LINE__, ret);
+		return ret;
+	}
+#endif
+	writel_relaxed(value, comp->regs + offset);
+	return ret;
+}
+
+int mtk_ddp_write_mask(struct mtk_ddp_comp *comp, unsigned int value,
+			unsigned int offset, unsigned int mask, void *handle)
+{
+	int ret = 0;
+	unsigned int tmp;
+#ifndef DRM_CMDQ_DISABLE
+	if(handle) {
+		ret = cmdq_pkt_write((struct cmdq_pkt *)handle, comp->cmdq_base,
+		    comp->regs_pa + offset, value, mask);
+		if (ret < 0)
+		DDPPR_ERR("%s:%d, cmdq error! ret:%d\n",
+				__func__, __LINE__, ret);
+		return ret;
+	}
+#endif
+	tmp = readl(comp->regs + offset);
+	tmp = (tmp & ~mask) | (value & mask);
+	writel(tmp, comp->regs + offset);
+	return ret;
+}
+#else
 void mtk_ddp_write(struct mtk_ddp_comp *comp, unsigned int value,
 		   unsigned int offset, void *handle)
 {
@@ -158,6 +213,7 @@ void mtk_ddp_write(struct mtk_ddp_comp *comp, unsigned int value,
 #endif
 }
 
+//#ifdef OPLUS_ADFR
 void mtk_ddp_write_relaxed(struct mtk_ddp_comp *comp, unsigned int value,
 			   unsigned int offset, void *handle)
 {
@@ -171,6 +227,7 @@ void mtk_ddp_write_relaxed(struct mtk_ddp_comp *comp, unsigned int value,
 	writel_relaxed(value, comp->regs + offset);
 
 }
+//#endif
 
 void mtk_ddp_write_mask(struct mtk_ddp_comp *comp, unsigned int value,
 			unsigned int offset, unsigned int mask, void *handle)
@@ -188,6 +245,7 @@ void mtk_ddp_write_mask(struct mtk_ddp_comp *comp, unsigned int value,
 	tmp = (tmp & ~mask) | (value & mask);
 	writel(tmp, comp->regs + offset);
 }
+#endif /* CONFIG_PXLW_IRIS */
 
 void mtk_ddp_write_mask_cpu(struct mtk_ddp_comp *comp,
 	unsigned int value, unsigned int offset, unsigned int mask)
@@ -594,9 +652,6 @@ void mtk_ddp_comp_get_name(struct mtk_ddp_comp *comp, char *buf, int buf_len)
 		return;
 	}
 
-	if (buf_len > sizeof(buf))
-		buf_len = sizeof(buf);
-
 	r = snprintf(buf, buf_len, "%s%d",
 		  mtk_ddp_comp_stem[mtk_ddp_matches[comp->id].type],
 		  mtk_ddp_matches[comp->id].alias_id);
@@ -612,6 +667,14 @@ int mtk_ddp_comp_get_type(enum mtk_ddp_comp_id comp_id)
 		return -EINVAL;
 
 	return mtk_ddp_matches[comp_id].type;
+}
+
+int mtk_ddp_comp_get_alias(enum mtk_ddp_comp_id comp_id)
+{
+	if (comp_id >= DDP_COMPONENT_ID_MAX)
+		return -EINVAL;
+
+	return mtk_ddp_matches[comp_id].alias_id;
 }
 
 static bool mtk_drm_find_comp_in_ddp(struct mtk_ddp_comp ddp_comp,
@@ -950,7 +1013,7 @@ void mtk_ddp_comp_clk_unprepare(struct mtk_ddp_comp *comp)
 
 	if (comp->clk)
 		clk_disable_unprepare(comp->clk);
-	DDPMSG("%s: comp %d unprepare done\n", __func__, comp->id);
+	DDPINFO("%s: comp %d unprepare done\n", __func__, comp->id);
 
 	if (comp->larb_dev)
 #ifdef MTK_SMI_CLK_CTRL
@@ -1079,40 +1142,39 @@ void mt6768_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
 	bool en = *((bool *)data);
 
 	if (id == DDP_COMPONENT_ID_MAX) { /* config when top clk on */
-		if (!en)
-			return;
-
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					0, SODI_REQ_SEL_ALL);
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					0, SODI_REQ_VAL_ALL);
-
-		/* apply sodi hrt with rdma fifo*/
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					1, SODI_HRT_FIFO_SEL_DISP0_PD_MODE);
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					1, SODI_HRT_FIFO_SEL_DISP0_CG_MODE);
-
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					1, SODI_REQ_SEL_RDMA0_PD_MODE);
-		SET_VAL_MASK(sodi_req_val, sodi_req_mask,
-					1, SODI_REQ_VAL_RDMA0_PD_MODE);
-
-		SET_VAL_MASK(emi_req_val, emi_req_mask,
-					0xFF, MT6768_HRT_URGENT_CTL_SEL_ALL);
-		SET_VAL_MASK(emi_req_val, emi_req_mask,
-					0, MT6768_HRT_URGENT_CTL_VAL_ALL);
+		if (en == 1) {
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						1, SODI_REQ_SEL_ALL);
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						1, SODI_REQ_VAL_ALL);
+		} else {
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						0, SODI_REQ_SEL_ALL);
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						0x0f, SODI_REQ_VAL_ALL);
+		}
 	} else if (id == DDP_COMPONENT_RDMA0) {
+		if (en == 1) {
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+				1, SODI_REQ_SEL_ALL);
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						1, SODI_REQ_VAL_ALL);
+		} else {
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+				0, SODI_REQ_SEL_ALL);
+			SET_VAL_MASK(sodi_req_val, sodi_req_mask,
+						0xf, SODI_REQ_VAL_ALL);
+		}
 		SET_VAL_MASK(sodi_req_val, sodi_req_mask, (!en),
 					SODI_REQ_SEL_RDMA0_CG_MODE);
-		SET_VAL_MASK(emi_req_val, emi_req_mask, (!en),
-					MT6768_HRT_URGENT_CTL_SEL_RDMA0);
 	} else if (id == DDP_COMPONENT_WDMA0) {
 		SET_VAL_MASK(emi_req_val, emi_req_mask, (!en),
 					MT6768_HRT_URGENT_CTL_SEL_WDMA0);
 	} else
 		return;
 
+	emi_req_val = 0;
+	emi_req_mask = 3;
 	if (handle == NULL) {
 		unsigned int v;
 

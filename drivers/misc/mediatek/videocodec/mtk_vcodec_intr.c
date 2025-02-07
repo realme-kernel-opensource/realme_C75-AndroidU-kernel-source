@@ -25,7 +25,7 @@ void dec_isr(struct mtk_vcodec_dev *dev)
 	void __iomem *vdec_misc = dev->dec_reg_base[VDEC_BASE] + 0x5000;
 	void __iomem *vdec_misc_addr = vdec_misc + MTK_VDEC_IRQ_CFG_REG;
 
-	u4DecDoneStatus = VDO_HW_READ(vdec_misc_addr + MTK_VDEC_IRQ_CFG_REG);
+	u4DecDoneStatus = VDO_HW_READ(vdec_misc_addr);
 	if ((u4DecDoneStatus & (0x1 << 16)) != 0x10000) {
 		pr_info("[VDEC] DEC ISR, Dec done is not 0x1 (0x%08x)",
 				u4DecDoneStatus);
@@ -52,10 +52,10 @@ void dec_isr(struct mtk_vcodec_dev *dev)
 	}
 
 	/* Clear interrupt */
-	VDO_HW_WRITE(vdec_misc_addr+41*4,
-		VDO_HW_READ(vdec_misc_addr + 41*4) | MTK_VDEC_IRQ_CFG);
-	VDO_HW_WRITE(vdec_misc_addr+41*4,
-		VDO_HW_READ(vdec_misc_addr + 41*4) & ~MTK_VDEC_IRQ_CLR);
+	VDO_HW_WRITE(vdec_misc+41*4,
+		VDO_HW_READ(vdec_misc + 41*4) | MTK_VDEC_IRQ_CFG);
+	VDO_HW_WRITE(vdec_misc+41*4,
+		VDO_HW_READ(vdec_misc + 41*4) & ~MTK_VDEC_IRQ_CLR);
 
 
 	spin_lock_irqsave(&gDrvInitParams->decIsrLock, ulFlags);
@@ -195,7 +195,7 @@ irqreturn_t video_intr_dlr2(int irq, void *priv)
 int mtk_vcodec_irq_setup(struct platform_device *pdev, struct mtk_vcodec_dev *dev)
 {
 	if (request_irq(dev->dec_irq, (irq_handler_t)video_intr_dlr,
-			IRQF_TRIGGER_HIGH, VCODEC_DEVNAME, NULL) < 0) {
+			IRQF_TRIGGER_HIGH, VCODEC_DEVNAME, dev) < 0) {
 		/* Add one line comment for avoid kernel coding style,
 		 * WARNING:BRACES:
 		 */
@@ -206,7 +206,7 @@ int mtk_vcodec_irq_setup(struct platform_device *pdev, struct mtk_vcodec_dev *de
 	}
 
 	if (request_irq(dev->enc_irq, (irq_handler_t)video_intr_dlr2,
-			IRQF_TRIGGER_HIGH, VCODEC_DEVNAME, NULL) < 0) {
+			IRQF_TRIGGER_HIGH, VCODEC_DEVNAME, dev) < 0) {
 		/* Add one line comment for avoid kernel coding style,
 		 * WARNING:BRACES:
 		 */

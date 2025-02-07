@@ -1,0 +1,1 @@
+obj-$(CONFIG_OCP2130_I2C)		+= ocp2130_drv.o

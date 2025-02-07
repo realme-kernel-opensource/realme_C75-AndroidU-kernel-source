@@ -1,5 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 
+config MTK_SMI_BWC
+	tristate "MediaTek BWC driver"
+	help
+	  BWC is mainy to optimize the bus access latency based on
+	  multimedia scenarios.
+	  It is required for many MTK multimedia middlewares including
+	  camera and video middlewares on some legacy chips.
+	  This config enables BWC functions.
+
+
 config HAVE_MTK_MC
 	bool "MediaTek Memory Controller support"
 	help
@@ -27,6 +37,16 @@ config MTK_EMI
 	  Provide the API for MPU registration, EMI MPU violation handling,
 	  the API for EMI information, the BWL golden setting,
 	  and the sysfs for EMI ISU control.
+
+config MTK_EMI_BWL_VERSION
+	int "MTK_EMI_BWL_VERSION"
+	depends on HAVE_MTK_MC
+	default 0
+	help
+	  This selects the MediaTek(R) EMI driver.
+	  Provide version for emi bwl implementation in kernel,
+	  0 means not support by default.
+
 
 config MTK_EMI_MPU_TEST
 	tristate "MediaTek EMI MPU test"

@@ -35,7 +35,10 @@ int als_data_report_t(int value, int status, int64_t time_stamp)
 		err = sensor_input_event(cxt->als_mdev.minor, &event);
 		cxt->is_get_valid_als_data_after_enable = true;
 	}
-	if (value != last_als_report_data) {
+	#if(0) //UNOPLUS_FEATURE_SENSOR_WISELIGHT
+	if (value != last_als_report_data)
+	#endif
+	{
 		event.handle = ID_LIGHT;
 		event.flush_action = DATA_ACTION;
 		event.word[0] = value;
@@ -122,6 +125,10 @@ int rgbw_flush_report(void)
 }
 EXPORT_SYMBOL_GPL(rgbw_flush_report);
 
+#if(1) //OPLUS_FEATURE_SENSOR
+uint32_t prox_report_count = 0;
+EXPORT_SYMBOL_GPL(prox_report_count);
+#endif /*OPLUS_FEATURE_SENSOR*/
 int ps_data_report_t(int value, int status, int64_t time_stamp)
 {
 	int err = 0;
@@ -133,6 +140,9 @@ int ps_data_report_t(int value, int status, int64_t time_stamp)
 	event.flush_action = DATA_ACTION;
 	event.time_stamp = time_stamp;
 	event.word[0] = value + 1;
+#if(1) //OPLUS_FEATURE_SENSOR
+	event.word[1] = prox_report_count;
+#endif
 	event.status = status;
 	err = sensor_input_event(alsps_context_obj->ps_mdev.minor, &event);
 	return err;
@@ -516,8 +526,10 @@ static ssize_t alsbatch_store(struct device *dev,
 {
 	struct alsps_context *cxt = alsps_context_obj;
 	int handle = 0, flag = 0, err = 0;
+	#if(0) //UNOPLUS_FEATURE_SENSOR_WISELIGHT
 	int64_t delay_ns = 0;
 	int64_t latency_ns = 0;
+	#endif
 
 	pr_debug("%s %s\n", __func__, buf);
 	err = sscanf(buf, "%d,%d,%lld,%lld", &handle, &flag, &cxt->als_delay_ns,
@@ -539,9 +551,14 @@ static ssize_t alsbatch_store(struct device *dev,
 		err = als_enable_and_batch();
 #endif
 	} else if (handle == ID_RGBW) {
+		#if(1) //OPLUS_FEATURE_SENSOR_WISELIGHT
+		cxt->rgbw_delay_ns = cxt->als_delay_ns;
+		cxt->rgbw_latency_ns = cxt->als_latency_ns;
+		#else
 		cxt->rgbw_delay_ns = delay_ns;
 		cxt->rgbw_latency_ns = latency_ns;
-#if IS_ENABLED(CONFIG_NANOHUB) && IS_ENABLED(CONFIG_MTK_ALSPSHUB)
+		#endif
+#if defined(CONFIG_NANOHUB) && defined(CONFIG_MTK_ALSPSHUB)
 		if (cxt->als_ctl.is_support_batch)
 			err = cxt->als_ctl.rgbw_batch(0, cxt->rgbw_delay_ns,
 				cxt->rgbw_latency_ns);

@@ -19,6 +19,10 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/
 # Include uart header "mtk_uart_api.h"
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/uart/include/
 # Include teei header teei_client_main.h
+ifeq ($(CONFIG_THERMAL), y)
+ccflags-y += -I$(srctree)/drivers/gpu/mediatek/gpufreq/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/thermal/inc/mach/
+endif
 ifneq ($(filter y m,$(CONFIG_MICROTRUST_TEE_SUPPORT)),)
 include $(srctree)/drivers/tee/teei/Makefile.include
 endif
@@ -31,6 +35,8 @@ ifeq ($(CONFIG_MTK_TINYSYS_SSPM_V1), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v1/
 endif
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcdi/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/power_gs_v1/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/power_gs_v1/mt6768/
 #obj-$(CONFIG_MTK_SPM) += mtk_spm.o
 #obj-$(CONFIG_MTK_SPM) += mtk_spm_twam.o
 #obj-$(CONFIG_MTK_SPM) += mtk_spm_irq.o
@@ -94,7 +100,5 @@ MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_export_legacy.o
 MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_idle_sysfs.o
 MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_lp_kernfs.o
 MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_lp_sysfs.o
-MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_lp_sysfs_debugfs.o
-MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_lp_sysfs_kernfs.o
 MTK_INTERNAL_SPM-y += ../common_v1/mtk_idle_fs/mtk_lp_sysfs_procfs.o
 

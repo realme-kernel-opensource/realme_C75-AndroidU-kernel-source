@@ -34,7 +34,7 @@
 #endif
 #include <mtk_gpu_utility.h>
 
-#if IS_ENABLED(CONFIG_MTK_PBM)
+#if IS_ENABLED(CONFIG_MTK_PBM) || IS_ENABLED(CONFIG_MTK_PBM_LEGACY)
 #include <mtk_pbm_gpu_cb.h>
 #endif
 #if IS_ENABLED(CONFIG_MTK_BATTERY_OC_POWER_THROTTLING)
@@ -1040,6 +1040,60 @@ done:
 EXPORT_SYMBOL(gpufreq_set_limit);
 
 /***********************************************************************************
+ * Function Name      : gpufreq_set_limit_by_power
+ * Inputs             : target          - Target of GPU DVFS (GPU, STACK, DEFAULT)
+ *                      limiter         - Pre-defined user that set limit to GPU DVFS
+ *                      ceiling_info    - Upper limit power info
+ *                      floor_info      - Lower limit power info
+ * Outputs            : -
+ * Returns            : GPUFREQ_SUCCESS - Success
+ *                      GPUFREQ_EINVAL  - Failure
+ *                      GPUFREQ_ENOENT  - Null implementation
+ * Description        : Set ceiling and floor limit to GPU DVFS by specified limiter
+ *                      It will immediately trigger DVFS if current OPP violates limit
+ ***********************************************************************************/
+int gpufreq_set_limit_by_power(enum gpufreq_target target,
+	enum gpuppm_limiter limiter, int ceiling_info, int floor_info)
+{
+	int ceiling_idx = -1, floor_idx = -1;
+	int ceiling_freq = GPUPPM_KEEP_IDX, floor_freq = GPUPPM_KEEP_IDX;
+	int ret = GPUFREQ_SUCCESS;
+
+	//update the power table with current temp.
+	if (gpufreq_fp && gpufreq_fp->update_power_table)
+		gpufreq_fp->update_power_table();
+
+	//use the power info to get freq
+	if (ceiling_info > 0) {
+		if (gpufreq_fp && gpufreq_fp->get_idx_by_pgpu)
+			ceiling_idx = gpufreq_fp->get_idx_by_pgpu((unsigned int)ceiling_info);
+
+		if (gpufreq_fp && gpufreq_fp->get_fgpu_by_idx)
+			ceiling_freq =  gpufreq_fp->get_fgpu_by_idx(ceiling_idx);
+
+	} else {
+		//if info is gpuppm_reserved_idx, just pass to set_limit.
+		ceiling_freq = ceiling_info;
+	}
+	//use the power info to get freq
+	if (floor_info > 0) {
+		if (gpufreq_fp && gpufreq_fp->get_idx_by_pgpu)
+			floor_idx = gpufreq_fp->get_idx_by_pgpu((unsigned int)floor_info);
+
+		if (gpufreq_fp && gpufreq_fp->get_fgpu_by_idx)
+			floor_freq =  gpufreq_fp->get_fgpu_by_idx(floor_idx);
+
+	} else {
+		//if info is gpuppm_reserved_idx, just pass to set_limit.
+		floor_freq = floor_info;
+	}
+	//pass the freq info to set_limit.
+	ret = gpufreq_set_limit(target, limiter, ceiling_freq, floor_freq);
+	return ret;
+}
+EXPORT_SYMBOL(gpufreq_set_limit_by_power);
+
+/***********************************************************************************
  * Function Name      : gpufreq_get_cur_limit_idx
  * Inputs             : target    - Target of GPU DVFS (GPU, STACK, DEFAULT)
  *                      limit     - Type of limit (GPUPPM_CEILING, GPUPPM_FLOOR)
@@ -1849,7 +1903,7 @@ static void gpufreq_low_batt_callback(enum LOW_BATTERY_LEVEL_TAG low_batt_level)
 
 static void gpufreq_init_external_callback(void)
 {
-#if IS_ENABLED(CONFIG_MTK_PBM)
+#if IS_ENABLED(CONFIG_MTK_PBM) || IS_ENABLED(CONFIG_MTK_PBM_LEGACY)
 	struct pbm_gpu_callback_table pbm_cb = {
 		.get_max_pb = gpufreq_get_max_power,
 		.get_min_pb = gpufreq_get_min_power,
@@ -1866,7 +1920,7 @@ static void gpufreq_init_external_callback(void)
 	mtk_get_gpu_cur_oppidx_fp = gpufreq_get_cur_oppidx;
 
 	/* register PBM callback */
-#if IS_ENABLED(CONFIG_MTK_PBM)
+#if IS_ENABLED(CONFIG_MTK_PBM) || IS_ENABLED(CONFIG_MTK_PBM_LEGACY)
 	register_pbm_gpu_notify(&pbm_cb);
 #endif /* CONFIG_MTK_PBM */
 

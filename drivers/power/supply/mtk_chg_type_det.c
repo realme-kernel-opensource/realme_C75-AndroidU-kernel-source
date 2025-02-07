@@ -14,9 +14,17 @@
 #include <linux/suspend.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
+#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
+#include "../oplus/pd_ext/inc/tcpm.h"
+#else
 #include <tcpm.h>
+#endif
 
 #define MTK_CTD_DRV_VERSION	"1.0.0_MTK"
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+extern bool oplus_chg_wake_update_work(void);
+#endif
 
 struct mtk_ctd_info {
 	struct device *dev;
@@ -56,6 +64,10 @@ enum attach_type {
 	ATTACH_TYPE_PD_DCP,
 	ATTACH_TYPE_PD_NONSTD,
 };
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+extern bool tcpm_inquire_usb_comm(struct tcpc_device *tcpc);
+#endif
 
 static int mtk_ext_get_charger_type(struct mtk_ctd_info *mci, int attach)
 {
@@ -154,7 +166,11 @@ static void handle_pd_rdy_attach(struct mtk_ctd_info *mci, struct tcp_notify *no
 		mci->pd_rdy = true;
 		mutex_unlock(&mci->attach_lock);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		usb_comm = tcpm_inquire_usb_comm(mci->tcpc_dev);
+#else
 		usb_comm = tcpm_is_comm_capable(mci->tcpc_dev);
+#endif
 		tcpm_get_remote_power_cap(mci->tcpc_dev, &cap);
 		watt = cap.max_mv[0] * cap.ma[0];
 		dev_info(mci->dev, "%s: mv:%d, ma:%d, watt: %d\n",
@@ -312,9 +328,12 @@ static int mtk_ctd_probe(struct platform_device *pdev)
 
 	mci->bc12_psy = devm_power_supply_get_by_phandle(&pdev->dev,
 							"bc12");
-	if (IS_ERR_OR_NULL(mci->bc12_psy)) {
-		dev_notice(&pdev->dev, "Failed to get charger psy\n");
+	if (IS_ERR(mci->bc12_psy)) {
+		dev_notice(&pdev->dev, "Failed to get charger psy, no device\n");
 		return PTR_ERR(mci->bc12_psy);
+	} else if (!mci->bc12_psy) {
+		dev_notice(&pdev->dev, "Failed to get charger psy, charger psy is not ready\n");
+		return -EPROBE_DEFER;
 	}
 
 	mci->tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
@@ -376,7 +395,7 @@ static int __init mtk_ctd_init(void)
 {
 	return platform_driver_register(&mtk_ctd_driver);
 }
-device_initcall_sync(mtk_ctd_init);
+late_initcall_sync(mtk_ctd_init);
 
 static void __exit mtk_ctd_exit(void)
 {

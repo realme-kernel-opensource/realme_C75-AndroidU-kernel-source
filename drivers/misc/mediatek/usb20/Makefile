@@ -26,13 +26,18 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
 
 # for SPM control usage
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/spm/
 
 # for musb main
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/usb20/musb_main/
 
 # for typec event
 ifeq ($(CONFIG_TCPC_CLASS),$(filter $(CONFIG_TCPC_CLASS),m y))
+ifndef CONFIG_OPLUS_PD_EXT_SUPPORT
 	ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
+else
+	ccflags-y += -I$(srctree)/drivers/power/oplus/pd_ext/inc
+endif
 endif
 
 # define_trace.h needs to know how to find our header

@@ -729,6 +729,90 @@ static const struct mtk_cam_format_desc sv_stream_out_fmts[] = {
 			.pixelformat = V4L2_PIX_FMT_SRGGB14,
 		},
 	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SBGGR10,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SBGGR12,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SBGGR14,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGBRG10,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGBRG12,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGBRG14,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGRBG10,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGRBG12,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SGRBG14,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SRGGB10,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SRGGB12,
+		},
+	},
+	{
+		.vfmt.fmt.pix_mp = {
+			.width = SV_IMG_MAX_WIDTH,
+			.height = SV_IMG_MAX_HEIGHT,
+			.pixelformat = V4L2_PIX_FMT_SRGGB14,
+		},
+	},
 };
 
 #define MTK_CAMSV_TOTAL_CAPTURE_QUEUES 1
@@ -806,11 +890,64 @@ static int push_msgfifo(struct mtk_camsv_device *dev,
 
 void sv_reset(struct mtk_camsv_device *dev)
 {
-	int sw_ctl;
+	int sw_ctl, smi_dbg_data;
 	int ret;
 
 	dev_dbg(dev->dev, "%s camsv_id:%d\n", __func__, dev->id);
 
+	writel(0, dev->base + REG_CAMSV_SW_CTL);
+	writel(1, dev->base + REG_CAMSV_SW_CTL);
+	wmb(); /* make sure committed */
+
+	ret = readx_poll_timeout(readl, dev->base + REG_CAMSV_SW_CTL, sw_ctl,
+				 sw_ctl & 0x2,
+				 1 /* delay, us */,
+				 100000 /* timeout, us */);
+	if (ret < 0) {
+		dev_info(dev->dev, "%s: timeout\n", __func__);
+
+		dev_info(dev->dev,
+			 "tg_sen_mode: 0x%x, ctl_en: 0x%x, ctl_sw_ctl:0x%x, frame_no:0x%x\n",
+			 readl(dev->base + REG_CAMSV_TG_SEN_MODE),
+			 readl(dev->base + REG_CAMSV_MODULE_EN),
+			 readl(dev->base + REG_CAMSV_SW_CTL),
+			 readl(dev->base + REG_CAMSV_FRAME_SEQ_NO)
+			);
+
+		mtk_smi_dbg_hang_detect("camsys-camsv");
+
+		goto RESET_FAILURE;
+	}
+
+	/* wait for fifo to be empty before adjust max burst length */
+	writel(0x00000800, dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_SEL);
+	wmb(); /* make sure committed */
+	ret = readx_poll_timeout(readl, dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_PORT, smi_dbg_data,
+				 smi_dbg_data & 0x2000,
+				 1 /* delay, us */,
+				 1000 /* timeout, us */);
+	if (ret < 0)
+		dev_info(dev->dev, "%s: wait for fifo to be empty timeout(smi debug data:0x%x)\n",
+			__func__, readl(dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_PORT));
+	else {
+		dev_info(dev->dev, "%s: set max burst length to 1\n", __func__);
+		if (dev->id < CAMSV_10)
+			writel(0x01000300, dev->base_inner + REG_CAMSV_IMGO_CON0);
+		else
+			writel(0x01000080, dev->base_inner + REG_CAMSV_IMGO_CON0);
+	}
+	/* wait for fifo to be empty after adjust max burst length */
+	writel(0x00000800, dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_SEL);
+	wmb(); /* make sure committed */
+	ret = readx_poll_timeout(readl, dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_PORT, smi_dbg_data,
+				 smi_dbg_data & 0x2000,
+				 1 /* delay, us */,
+				 1000 /* timeout, us */);
+	if (ret < 0)
+		dev_info(dev->dev, "%s: wait for fifo to be empty timeout(smi debug data:0x%x)\n",
+			__func__, readl(dev->base + REG_CAMSV_DMATOP_DMA_DEBUG_PORT));
+
+	/* reset dma again */
 	writel(0, dev->base + REG_CAMSV_SW_CTL);
 	writel(1, dev->base + REG_CAMSV_SW_CTL);
 	wmb(); /* make sure committed */
@@ -1034,7 +1171,8 @@ unsigned int mtk_cam_sv_pak_sel(unsigned int pixel_fmt,
 	return pak.Raw;
 }
 
-unsigned int mtk_cam_sv_xsize_cal(struct mtkcam_ipi_input_param *cfg_in_param)
+unsigned int mtk_cam_sv_xsize_cal(
+	struct mtkcam_ipi_input_param *cfg_in_param)
 {
 
 	unsigned int size = 0;
@@ -1340,7 +1478,8 @@ int mtk_cam_sv_dmao_config(
 	if (hw_scen & MTK_CAMSV_SUPPORTED_SPECIAL_HW_SCENARIO) {
 		if (raw_imgo_stride > mtk_cam_sv_xsize_cal(cfg_in_param)) {
 			dev_info(dev->dev, "Special feature:0x%x, raw/sv stride = %d(THIS)/%d\n",
-				hw_scen, raw_imgo_stride, mtk_cam_sv_xsize_cal(cfg_in_param));
+				hw_scen, raw_imgo_stride,
+				mtk_cam_sv_xsize_cal(cfg_in_param));
 			CAMSV_WRITE_REG(dev->base + REG_CAMSV_IMGO_STRIDE,
 				raw_imgo_stride);
 		}
@@ -1625,11 +1764,27 @@ int mtk_cam_sv_enquehwbuf(
 int mtk_cam_get_sv_pixel_mode(struct mtk_cam_ctx *ctx, unsigned int idx)
 {
 	struct v4l2_format *img_fmt;
+	int pix_mode = 0;
 
 	img_fmt = &ctx->sv_pipe[idx]
 		->vdev_nodes[MTK_CAMSV_MAIN_STREAM_OUT-MTK_CAMSV_SINK_NUM].active_fmt;
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (mtk_camsv_is_yuv_format(img_fmt->fmt.pix_mp.pixelformat))
+		pix_mode = 0;
+	else if ((img_fmt->fmt.pix_mp.width % 8) == 0)
+		pix_mode = 3;
+	else if ((img_fmt->fmt.pix_mp.width % 4) == 0)
+		pix_mode = 2;
+	else if ((img_fmt->fmt.pix_mp.width % 2) == 0)
+		pix_mode = 1;
+	else
+		pix_mode = 0;
+
+	return pix_mode;
+#else
 	return (mtk_camsv_is_yuv_format(img_fmt->fmt.pix_mp.pixelformat)) ? 0 : 3;
+#endif
 }
 
 int mtk_cam_sv_write_rcnt(struct mtk_cam_ctx *ctx, unsigned int pipe_id)
@@ -2667,6 +2822,7 @@ static irqreturn_t mtk_irq_camsv(int irq, void *data)
 		drop_status, imgo_err_status, imgo_overr_status,
 		fbc_imgo_status, imgo_addr, dequeued_imgo_seq_no_inner,
 		dequeued_imgo_seq_no, tg_sen_mode, dcif_set, tg_vf_con, tg_path_cfg);
+#endif
 	}
 	irq_flag = irq_info.irq_type;
 	if (irq_flag && push_msgfifo(camsv_dev, &irq_info) == 0)
@@ -3111,7 +3267,7 @@ static int mtk_camsv_runtime_suspend(struct device *dev)
 	struct mtk_camsv_device *camsv_dev = dev_get_drvdata(dev);
 	int i;
 
-	dev_dbg(dev, "%s:disable clock\n", __func__);
+	dev_info(dev, "%s:disable clock\n", __func__);
 
 	disable_irq(camsv_dev->irq);
 

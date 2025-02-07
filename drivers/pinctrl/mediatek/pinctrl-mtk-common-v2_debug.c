@@ -145,6 +145,8 @@ out:
 	return ret;
 }
 
+EXPORT_SYMBOL_GPL(gpio_get_tristate_input);
+
 static int mtk_hw_set_value_wrap(struct mtk_pinctrl *hw, unsigned int gpio,
 	int value, int field)
 {

@@ -4645,10 +4645,6 @@ static int dpmaif_pre_stop(unsigned char hif_id)
 	if (hif_id != DPMAIF_HIF_ID)
 		return -1;
 
-	if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_PWROFF
-		|| dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN)
-		return 0;
-
 	dpmaif_stop_hw();
 
 	return 0;
@@ -4890,8 +4886,11 @@ static inline int dpmaif_set_skb_data_to_smem_drb(struct dpmaif_tx_queue *txq,
 		drb_pd->c_bit = c_bit;
 		drb_pd->data_len = data_len;
 		drb_pd->p_data_addr = phy_addr & 0xFFFFFFFF;
+#if IS_ENABLED(CONFIG_ARM64)
 		drb_pd->data_addr_ext = (phy_addr >> 32) & 0xFF;
-
+#else
+		drb_pd->data_addr_ext = 0;
+#endif
 		drb_skb = &smem_drb_skb[cur_idx];
 		drb_skb->skb = skb;
 		drb_skb->phy_addr = phy_addr;
@@ -5381,7 +5380,7 @@ int ccci_dpmaif_resume_noirq_v1(struct device *dev)
 			WAKE_SRC_HIF_DPMAIF, 0, 0, 0, 0, &res);
 
 	CCCI_NORMAL_LOG(-1, TAG,
-		"[%s] resume_cnt: %u; flag_1=0x%llx, flag_2=0x%llx, flag_3=0x%llx, flag_4=0x%llx\n",
+		"[%s] resume_cnt: %u; flag_1=0x%lx, flag_2=0x%lx, flag_3=0x%lx, flag_4=0x%lx\n",
 		__func__, g_resume_cnt, res.a0, res.a1, res.a2, res.a3);
 
 	if ((!res.a0) && (res.a1 == WAKE_SRC_HIF_DPMAIF))

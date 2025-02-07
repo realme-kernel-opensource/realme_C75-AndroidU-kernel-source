@@ -815,17 +815,6 @@ config CHARGER_WILCO
 	  information can be found in
 	  Documentation/ABI/testing/sysfs-class-power-wilco
 
-config CHARGER_MT6370
-        tristate "Mediatek MT6370 Charger Driver"
-        #depends on MFD_MT6370
-        #depends on REGULATOR
-        select EXTCON
-        help
-          Say Y here to enable MT6370 Charger Part.
-          support High-Accuracy Voltage/Current Regulation,
-          Average Input Current Regulation, Battery Tempature Sensing,
-          Over-Temperature Protection, DPDM Detection for BC1.2
-
 config CHARGER_MT6360
 	tristate "Mediatek MT6360 Charger Driver"
 	depends on MFD_MT6360
@@ -846,6 +835,20 @@ config CHARGER_MT6362
 	  The driver can also be build as a module.
 	  If so, the module will be called mt6362_chg
 
+config CHARGER_MT6370
+	tristate "MediaTek MT6370 Charger Driver"
+	depends on MFD_MT6370
+	depends on REGULATOR
+	select LINEAR_RANGES
+	help
+	  Say Y here to enable MT6370 Charger Part.
+	  The device supports High-Accuracy Voltage/Current Regulation,
+	  Average Input Current Regulation, Battery Temperature Sensing,
+	  Over-Temperature Protection, DPDM Detection for BC1.2.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called "mt6370-charger".
+
 config CHARGER_MT6375
 	tristate "MT6375 charger driver"
 	depends on MFD_MT6375
@@ -864,6 +867,15 @@ config GAUGE_MT6375
 	  The fuelgauge calculates and determines the battery state of charge
 	  according to battery open circuit voltage.
 
+config CHARGER_TYPE_MT6357
+       tristate "MT6357 Charger Type Detection Driver"
+       depends on MFD_MT6397
+       help
+         Say yes here to enable MT6357 Charger Type
+         Detection Driver.
+         This driver use MT6357 to detect charger type
+         Say no if not using MT6357 Charger Type Detection.
+
 config MTK_CHARGER_TYPE_DETECT
 	tristate "Mediatek Charger Type Detect Driver"
 	depends on TCPC_CLASS
@@ -880,6 +892,14 @@ config MTK_CHARGER
 	  This driver contains charging control flow and
 	  maintains charging status.
 	  Say no if not using MediaTek charging driver.
+
+config MT6357_DO_CTD
+	tristate "MT6370 get charger online from MT6357"
+	help
+	  Say yes here to enable mt6370 get charger online for mt6357.
+	  This will enable to get MT6370 charger online status for MT6357.
+	  This config will be enable for mt6357 charger type detection only.
+	  Say N to disable for other charger type detection chip choice.
 
 config CHARGER_RT9465
 	tristate "Charger Driver for Richtek RT9465 Charger IC"

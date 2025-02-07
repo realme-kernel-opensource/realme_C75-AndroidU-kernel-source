@@ -42,10 +42,19 @@
 	(0x358 + (idx) * 4)
 #define DISP_AAL_DRE_CRV_CAL_00                 (0x344)
 #define DISP_AAL_DRE_MAPPING_00                 (0x3b4)
+#define MT6768_DISP_AAL_DRE_MAPPING_00          (0x3b0)
 #define DISP_AAL_CABC_GAINLMT_TBL(idx) \
 	(0x410 + (idx) * 4)
+#define MT6768_DISP_AAL_CABC_GAINLMT_TBL(idx) \
+	(0x40c + (idx) * 4)
 
 #define DISP_AAL_DBG_CFG_MAIN                   (0x45c)
+
+#define MAX_DRE_FLT_NUM                         (16)
+#define DRE_FLT_NUM                             (12)
+#define LEGACY_DRE_FLT_NUM_MAX                  (11)
+#define DISP_AAL_DRE_FLT_FORCE_11               (0x44C)
+#define DISP_AAL_DRE_FLT_FORCE_12               (0x450)
 
 /* DRE 3.0 */
 #define DISP_AAL_CFG_MAIN                       (0x200)
@@ -165,6 +174,8 @@ int mtk_drm_ioctl_aal_init_dre30(struct drm_device *dev, void *data,
 int mtk_drm_ioctl_aal_get_size(struct drm_device *dev, void *data,
 	struct drm_file *file_priv);
 int mtk_drm_ioctl_aal_set_param(struct drm_device *dev, void *data,
+	struct drm_file *file_priv);
+int mtk_drm_ioctl_aal_set_trigger_state(struct drm_device *dev, void *data,
 	struct drm_file *file_priv);
 
 #endif

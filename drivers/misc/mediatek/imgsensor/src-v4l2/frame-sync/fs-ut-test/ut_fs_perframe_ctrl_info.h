@@ -277,6 +277,7 @@ struct fs_perframe_st imx516_sensor_mode[] = {
 		.linelength = 0,
 		.margin_lc = 0,
 		.lineTimeInNs = 0,
+		.readout_time_us = 0,
 	},
 };
 

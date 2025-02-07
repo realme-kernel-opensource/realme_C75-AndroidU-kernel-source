@@ -808,7 +808,7 @@ void md_dump_register_for_6768(struct ccci_modem *md)
 	unsigned int reg_value[2] = { 0 };
 	unsigned int ccif_sram[CCCI_EE_SIZE_CCIF_SRAM/sizeof(unsigned int)] = { 0 };
 	void __iomem *dump_reg0;
-	unsigned int reg_value1, reg_value2;
+	unsigned int reg_value1 = 0, reg_value2 = 0;
 	u32 boot_status_val = get_expected_boot_status_val();
 
 	CCCI_MEM_LOG_TAG(md->index, TAG, "%s, 0x%x\n", __func__, boot_status_val);
@@ -1212,7 +1212,7 @@ void md_dump_reg(struct ccci_modem *md)
 	if ((res.a0 & 0xffff0000) != 0) {
 		CCCI_NORMAL_LOG(-1, TAG, "[%s] go kernel md reg dump\n", __func__);
 		CCCI_NORMAL_LOG(-1, TAG, "[%s] md_gen\n", __func__, md_cd_plat_val_ptr.md_gen);
-		if (ap_plat_info == 6768)
+		if (ap_plat_info == 6768 || ap_plat_info == 6765)
 			md_dump_register_for_6768(md);
 		else
 			internal_md_dump_debug_register(md->index);

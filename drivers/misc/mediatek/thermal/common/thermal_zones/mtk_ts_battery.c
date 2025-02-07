@@ -25,35 +25,8 @@
 #include <linux/slab.h>
 #include "tzbatt_initcfg.h"
 #include <linux/power_supply.h>
+#include <soc/oplus/system/oplus_project.h>
 
-
-/* ************************************ */
-/* Function prototype*/
-/* ************************************ */
-static void tsbattery_exit(void);
-
-/* ************************************ */
-/* Weak functions */
-/* ************************************ */
-int __attribute__ ((weak))
-read_tbat_value(void)
-{
-	pr_notice("[Thermal] E_WF: %s doesn't exist\n", __func__);
-	return 30;
-}
-
-signed int __attribute__ ((weak))
-battery_get_bat_temperature(void)
-{
-	int i;
-
-	for (i = 0; i < 5; i++)
-		pr_notice("[Thermal] E_WF: %s doesn't exist\n", __func__);
-
-	tsbattery_exit();
-	return -127000;
-}
-/* ************************************ */
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
 static DEFINE_SEMAPHORE(sem_mutex);
@@ -313,12 +286,12 @@ static int mtktsbattery_unbind(struct thermal_zone_device *thermal,
 	} else
 		return 0;
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtktsbattery_dprintk(
-	//			"[%s] error unbinding cooling dev\n", __func__);
-//
-	//	return -EINVAL;
-//	}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtktsbattery_dprintk(
+				"[%s] error unbinding cooling dev\n", __func__);
+
+		return -EINVAL;
+	}
 
 	mtktsbattery_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
@@ -416,7 +389,12 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG_ON(1);
+#ifndef OPLUS_FEATURE_CHG_BASIC
+		if (get_eng_version() != HIGH_TEMP_AGING)
+			BUG_ON(1);
+		else
+			pr_info("%s should reset but bypass\n", __func__);
+#endif
 	}
 	return 0;
 }
@@ -693,13 +671,6 @@ static void mtktsbattery_unregister_thermal(void)
 		mtk_thermal_zone_device_unregister(thz_dev);
 		thz_dev = NULL;
 	}
-}
-
-static void tsbattery_exit(void)
-{
-	mtktsbattery_dprintk("[%s]\n", __func__);
-	mtktsbattery_unregister_thermal();
-	mtktsbattery_unregister_cooler();
 }
 
 static int mtkts_battery_open(struct inode *inode, struct file *file)

@@ -2575,6 +2575,7 @@ void fs_update_tg(unsigned int ident, unsigned int tg)
 }
 
 
+
 /*
  * update fs_streaming_st data
  *     (for cam_mux switch & sensor stream on before cam mux setup)
@@ -2630,7 +2631,6 @@ void fs_update_target_tg(const unsigned int ident,
 #endif
 }
 
-
 static unsigned int fs_chk_and_get_tg_value(
 	const unsigned int cammux_id, const unsigned int target_tg)
 {
@@ -2650,8 +2650,6 @@ static unsigned int fs_chk_and_get_tg_value(
 
 	return tg;
 }
-
-
 static inline void fs_reset_idx_ctx(unsigned int idx)
 {
 	/* unset sync */
@@ -3488,6 +3486,12 @@ void fs_notify_vsync(const unsigned int ident, const unsigned int sof_cnt)
 
 	if (FS_CHECK_BIT(idx, &fs_mgr.validSync_bits) == 0) {
 		/* no start frame sync, return */
+		return;
+	}
+
+	if (FS_CHECK_BIT(idx, &fs_mgr.hw_sync_bits)) {
+		/* using hw sensor sync, not doing sw sync flow */
+		fs_debug_hw_sync(idx);
 		return;
 	}
 

@@ -25,6 +25,9 @@
 #include "mtk_cam-pool.h"
 #include "mtk_cam-mraw-regs.h"
 #include "mtk_cam-mraw.h"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "mtk_cam-feature.h"
+#endif
 #ifdef CAMSYS_MRAW_V1
 #include "mtk_cam-meta-mt6983.h"
 #endif
@@ -1206,10 +1209,14 @@ int mtk_cam_mraw_apply_all_buffers(struct mtk_cam_ctx *ctx, bool is_check_ts)
 				buf_entry->mraw_cq_desc_size,
 				buf_entry->mraw_cq_desc_offset, 0);
 		} else {
-			if (watchdog_scenario(ctx))
-				mtk_ctx_watchdog_stop(ctx,
-					mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
-			mtk_cam_mraw_vf_on(mraw_dev, 0);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if (!mtk_cam_is_ext_isp(ctx)) {
+				if (watchdog_scenario(ctx))
+					mtk_ctx_watchdog_stop(ctx,
+						mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
+				mtk_cam_mraw_vf_on(mraw_dev, 0);
+			}
+#endif
 		}
 	}
 
@@ -1265,10 +1272,14 @@ int mtk_cam_mraw_apply_next_buffer(struct mtk_cam_ctx *ctx,
 					buf_entry->mraw_cq_desc_size,
 					buf_entry->mraw_cq_desc_offset, 0);
 			} else {
-				if (watchdog_scenario(ctx))
-					mtk_ctx_watchdog_stop(ctx,
-						mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
-				mtk_cam_mraw_vf_on(mraw_dev, 0);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				if (!mtk_cam_is_ext_isp(ctx)) {
+					if (watchdog_scenario(ctx))
+						mtk_ctx_watchdog_stop(ctx,
+							mraw_dev->id + MTKCAM_SUBDEV_MRAW_START, 0);
+					mtk_cam_mraw_vf_on(mraw_dev, 0);
+				}
+#endif
 			}
 			break;
 		}
@@ -1448,10 +1459,14 @@ int mtk_cam_mraw_top_config(struct mtk_mraw_device *dev)
 							MRAW_INT_EN1_DMA_ERR_EN
 							);
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	unsigned int int_en5 = (MRAW_INT_EN5_IMGO_M1_ERR_EN |
 							MRAW_INT_EN5_IMGBO_M1_ERR_EN |
 							MRAW_INT_EN5_CPIO_M1_ERR_EN
 							);
+#else
+	unsigned int int_en5 = 0;
+#endif
 
 	/* int en */
 	MRAW_WRITE_REG(dev->base + REG_MRAW_CTL_INT_EN, int_en1);
@@ -1579,8 +1594,11 @@ int mtk_cam_mraw_cq_disable(struct mtk_mraw_device *dev)
 
 	return ret;
 }
-
-int mtk_cam_mraw_top_enable(struct mtk_mraw_device *dev)
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+int mtk_cam_mraw_top_enable(
+	struct mtk_cam_ctx *ctx,
+	struct mtk_mraw_device *dev)
+#endif
 {
 	int ret = 0;
 
@@ -1596,11 +1614,14 @@ int mtk_cam_mraw_top_enable(struct mtk_mraw_device *dev)
 		MRAW_TG_SEN_MODE, TG_CMOS_EN, 1);
 
 	/* Enable VF */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	if (MRAW_READ_BITS(dev->base + REG_MRAW_TG_SEN_MODE,
-		MRAW_TG_SEN_MODE, TG_CMOS_EN) && dev->is_enqueued)
+		MRAW_TG_SEN_MODE, TG_CMOS_EN) &&
+		(dev->is_enqueued || mtk_cam_is_ext_isp(ctx)))
 		mtk_cam_mraw_vf_on(dev, 1);
 	else
 		dev_info(dev->dev, "%s, CMOS is off\n", __func__);
+#endif
 
 	return ret;
 }
@@ -1894,11 +1915,14 @@ int mtk_cam_mraw_dev_stream_on(
 		mraw_dev->wcnt_no_dup_cnt = 0;
 		mraw_dev->last_wcnt = 0;
 		mraw_dev->is_fbc_cnt_zero_happen = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 		ret = mtk_cam_mraw_cq_enable(ctx, mraw_dev) ||
-			mtk_cam_mraw_top_enable(mraw_dev);
-		if (watchdog_scenario(ctx) && mraw_dev->is_enqueued)
+			mtk_cam_mraw_top_enable(ctx, mraw_dev);
+		if (watchdog_scenario(ctx) &&
+			(mraw_dev->is_enqueued || mtk_cam_is_ext_isp(ctx)))
 			mtk_ctx_watchdog_start(ctx, 4,
 				mraw_dev->id + MTKCAM_SUBDEV_MRAW_START);
+#endif
 	}
 	else {
 		/* reset enqueued status */
@@ -2814,7 +2838,7 @@ static int mtk_mraw_runtime_suspend(struct device *dev)
 		mtk_cam_mraw_toggle_tg_db(mraw_dev);
 	}
 
-	dev_dbg(dev, "%s:disable clock\n", __func__);
+	dev_info(dev, "%s:disable clock\n", __func__);
 	for (i = 0; i < mraw_dev->num_clks; i++)
 		clk_disable_unprepare(mraw_dev->clks[i]);
 
@@ -2833,7 +2857,7 @@ static int mtk_mraw_runtime_resume(struct device *dev)
 
 	enable_irq(mraw_dev->irq);
 
-	dev_dbg(dev, "%s:enable clock\n", __func__);
+	dev_info(dev, "%s:enable clock\n", __func__);
 	for (i = 0; i < mraw_dev->num_clks; i++) {
 		ret = clk_prepare_enable(mraw_dev->clks[i]);
 		if (ret) {

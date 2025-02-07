@@ -58,7 +58,7 @@ static int trip_temp[10] = { 120000, 110000, 100000, 90000, 80000,
 				70000, 65000, 60000, 55000, 50000 };
 
 static struct thermal_zone_device *thz_dev;
-static int mtkts_btsmdpa_debug_log = true;
+static int mtkts_btsmdpa_debug_log;
 static int kernelmode;
 static int g_THERMAL_TRIP[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -91,7 +91,7 @@ static int polling_factor2 = 10000;
 #define mtkts_btsmdpa_dprintk(fmt, args...)   \
 do {                                    \
 	if (mtkts_btsmdpa_debug_log) {                \
-		pr_info("[Thermal/TZ/BTSMDPA]" fmt, ##args); \
+		pr_notice("[Thermal/TZ/BTSMDPA]" fmt, ##args); \
 	}                                   \
 } while (0)
 
@@ -870,11 +870,11 @@ static int mtkts_btsmdpa_unbind(struct thermal_zone_device *thermal,
 	} else
 		return 0;
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtkts_btsmdpa_dprintk(
-	//		"[%s] error unbinding cooling dev\n", __func__);
-	//	return -EINVAL;
-	//}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtkts_btsmdpa_dprintk(
+			"[%s] error unbinding cooling dev\n", __func__);
+		return -EINVAL;
+	}
 
 	mtkts_btsmdpa_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;

@@ -50,8 +50,9 @@
 #endif
 
 #if defined(ATM_USES_PPM)
-#if IS_ENABLED(CONFIG_MTK_PPM)
+#if IS_ENABLED(CONFIG_MTK_PPM_V3)
 #include "mtk_ppm_api.h"
+#include "mtk_ppm_platform.h"
 #endif
 #else
 #include "mt_cpufreq.h"
@@ -100,6 +101,7 @@ static int isTimerCancelled;
 
 #if !IS_ENABLED(CONFIG_MTK_CLKMGR)
 struct clk *therm_main;		/* main clock for Thermal */
+struct clk *auxadc_main;        /* main clock for Auxadc */
 #endif
 
 void __iomem  *therm_clk_infracfg_ao_base;
@@ -231,6 +233,7 @@ EXPORT_SYMBOL_GPL(tscpu_pdev);
 static int tscpu_thermal_probe(struct platform_device *dev);
 static int tscpu_register_thermal(void);
 static void tscpu_unregister_thermal(void);
+static int get_gpu_power_info(void);
 
 #if THERMAL_DRV_UPDATE_TEMP_DIRECT_TO_MET
 static int a_tscpu_all_temp[MTK_THERMAL_SENSOR_CPU_COUNT] = { 0 };
@@ -265,13 +268,6 @@ static int g_is_TempOutsideNormalRange;
  *Weak functions
  *=============================================================
  */
-	unsigned int  __attribute__((weak))
-mt_gpufreq_get_max_power(void)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-	return 0;
-}
-
 #if !IS_ENABLED(CONFIG_MEDIATEK_MT6577_AUXADC)
 int __attribute__ ((weak))
 IMM_IsAdcInitReady(void)
@@ -281,62 +277,8 @@ IMM_IsAdcInitReady(void)
 }
 #endif
 
-	bool __attribute__ ((weak))
-mtk_get_gpu_loading(unsigned int *pLoading)
-{
-#if IS_ENABLED(CONFIG_MTK_GPU_SUPPORT)
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-#endif
-	return 0;
-}
-
-	void __attribute__ ((weak))
-mt_ptp_lock(unsigned long *flags)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-
-	void __attribute__ ((weak))
-mt_ptp_unlock(unsigned long *flags)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-
-	void __attribute__ ((weak))
-mt_cpufreq_thermal_5A_limit(bool enable)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-
-	unsigned int __attribute__ ((weak))
-mt_gpufreq_get_cur_freq(void)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-	return 0;
-}
-
-	unsigned int __attribute__ ((weak))
-mt_ppm_thermal_get_max_power(void)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-	return 0;
-}
-
-	unsigned int  __attribute__((weak))
-mt_gpufreq_get_seg_max_opp_index(void)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-	return 0;
-}
-
-	unsigned int  __attribute__((weak))
-mt_gpufreq_get_dvfs_table_num(void)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-	return 0;
-}
-
 /*=============================================================*/
+
 long long thermal_get_current_time_us(void)
 {
 	long long temp;
@@ -394,39 +336,6 @@ void set_taklking_flag(bool flag)
 	talking_flag = flag;
 	tscpu_printk("talking_flag=%d\n", talking_flag);
 }
-
-int mtk_gpufreq_register(struct mt_gpufreq_power_table_info *freqs, int num)
-{
-	int i = 0;
-
-	tscpu_dprintk("%s\n", __func__);
-
-	mtk_gpu_power =
-		kzalloc((num) *
-			sizeof(struct mt_gpufreq_power_table_info), GFP_KERNEL);
-
-	if (mtk_gpu_power == NULL)
-		return -ENOMEM;
-
-	for (i = 0; i < num; i++) {
-		mtk_gpu_power[i].gpufreq_khz = freqs[i].gpufreq_khz;
-		mtk_gpu_power[i].gpufreq_power = freqs[i].gpufreq_power;
-
-		tscpu_dprintk("[%d].gpufreq_khz=%u, .gpufreq_power=%u\n",
-			i, freqs[i].gpufreq_khz, freqs[i].gpufreq_power);
-	}
-
-	gpu_max_opp = mt_gpufreq_get_seg_max_opp_index();
-	Num_of_GPU_OPP = gpu_max_opp + mt_gpufreq_get_dvfs_table_num();
-	/* error check */
-	if (gpu_max_opp >= num || Num_of_GPU_OPP > num || !Num_of_GPU_OPP) {
-		gpu_max_opp = 0;
-		Num_of_GPU_OPP = num;
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL(mtk_gpufreq_register);
 
 static int tscpu_bind
 (struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
@@ -537,10 +446,10 @@ static int tscpu_unbind
 		return 0;
 
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	tscpu_warn("%s error unbinding cooling dev\n", __func__);
-	//	return -EINVAL;
-//	}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		tscpu_warn("%s error unbinding cooling dev\n", __func__);
+		return -EINVAL;
+	}
 
 	tscpu_printk("%s unbinding OK\n", __func__);
 	return 0;
@@ -932,7 +841,7 @@ static int tscpu_read_opp(struct seq_file *m, void *v)
 			/* ((NULL == mtk_thermal_get_gpu_loading_fp) ?
 			 *	0 : mtk_thermal_get_gpu_loading_fp()),
 			 */
-			(int)gpu_loading, (int)mt_gpufreq_get_cur_freq(),
+			(int)gpu_loading, (int)gpufreq_get_cur_freq(TARGET_DEFAULT),
 			get_target_tj());
 
 #if defined(THERMAL_VPU_SUPPORT)
@@ -949,7 +858,7 @@ static int tscpu_read_opp(struct seq_file *m, void *v)
 	seq_printf(m, "%d,%d,0,%d\n",
 			(int)((cpu_power != 0x7FFFFFFF) ? cpu_power : 0),
 			(int)((gpu_power != 0x7FFFFFFF) ? gpu_power : 0),
-			(int)mt_gpufreq_get_cur_freq());
+			(int)gpufreq_get_cur_freq(TARGET_DEFAULT));
 #endif
 
 	return 0;
@@ -1625,7 +1534,6 @@ static int tscpu_thermal_suspend
 
 	do_gettimeofday(&begin);
 #endif
-
 	g_tc_resume = 1;	/* set "1", don't read temp during suspend */
 
 	if (talking_flag == false) {
@@ -1686,6 +1594,7 @@ static int tscpu_thermal_suspend
 						(end.tv_sec - begin.tv_sec),
 						(end.tv_usec - begin.tv_usec));
 #endif
+	clk_disable_unprepare(auxadc_main);
 	return 0;
 }
 
@@ -1696,10 +1605,15 @@ static int tscpu_thermal_resume_noirq(struct device *dev)
 static int tscpu_thermal_resume(struct platform_device *dev)
 #endif
 {
+	int ret = -1;
 #if !defined(CFG_THERM_NO_AUXADC)
 	int temp = 0;
 	int cnt = 0;
 #endif
+	ret = clk_prepare_enable(auxadc_main);
+	if (ret)
+		tscpu_printk("%s, Cannot enable auxadc clock.\n", __func__);
+
 	tscpu_printk("%s, %d\n", __func__, talking_flag);
 
 	g_is_temp_valid = 0;
@@ -1824,8 +1738,13 @@ static const struct dev_pm_ops lvts_pm_ops = {
 };
 #endif
 
+static int tscpu_thermal_remove(struct platform_device *pdev)
+{
+	clk_disable_unprepare(auxadc_main);
+	return 0;
+}
 static struct platform_driver mtk_thermal_driver = {
-	.remove = NULL,
+	.remove = tscpu_thermal_remove,
 	.shutdown = tscpu_thermal_shutdown,
 	.probe = tscpu_thermal_probe,
 #if !defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
@@ -1941,6 +1860,7 @@ int tscpu_get_temp_by_bank(enum thermal_bank_name ts_bank)
 
 	return bank_T;
 }
+EXPORT_SYMBOL(tscpu_get_temp_by_bank);
 
 
 #if THERMAL_GPIO_OUT_TOGGLE
@@ -2107,7 +2027,7 @@ static int tscpu_read_ttpct(struct seq_file *m, void *v)
 #else
 	max_cpu_pwr = 3000;
 #endif
-	max_gpu_pwr = mt_gpufreq_get_max_power() + 1;
+	max_gpu_pwr = gpufreq_get_max_power(TARGET_DEFAULT) + 1;
 	cpu_power = apthermolmt_get_cpu_power_limit();
 	gpu_power = apthermolmt_get_gpu_power_limit();
 
@@ -2234,7 +2154,7 @@ int tscpu_is_temp_valid(void)
 
 	return is_valid;
 }
-
+EXPORT_SYMBOL(tscpu_is_temp_valid);
 
 
 void tscpu_update_tempinfo(void)
@@ -2574,7 +2494,7 @@ static void tscpu_create_fs(void)
 /*must wait until AUXADC initial ready*/
 static int tscpu_thermal_probe(struct platform_device *dev)
 {
-	int err = 0;
+	int err = 0, ret = -1;
 
 	tscpu_printk("thermal_prob\n");
 
@@ -2595,6 +2515,15 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 		return PTR_ERR(therm_main);
 	}
 	tscpu_dprintk("therm-main Ptr=%p", therm_main);
+	auxadc_main = devm_clk_get(&dev->dev, "auxadc-main");
+	if (IS_ERR(auxadc_main)) {
+		tscpu_printk("cannot get auxadc clock.\n");
+		return PTR_ERR(auxadc_main);
+	}
+	tscpu_dprintk("auxadc_main Ptr=%p", auxadc_main);
+	ret = clk_prepare_enable(auxadc_main);
+	if (ret)
+		tscpu_printk("%s, Cannot enable auxadc clock.\n", __func__);
 #endif
 
 #if CFG_THERMAL_KERNEL_IGNORE_HOT_SENSOR
@@ -2602,9 +2531,19 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 #endif
 	tscpu_thermal_clock_on();
 
+	/* get gpufreq info*/
+	err = get_gpu_power_info();
+	if (err)
+		tscpu_printk("cannot get gpu power table\n");
+
 	/* let mtk_tc.c to use pdev pointer to access DT */
 	tscpu_pdev = dev;
 	init_thermal(dev);
+
+#ifdef ATM_USES_PPM
+	mt_ppm_thermal_get_cpu_cluster_temp_cb(
+		&get_immediate_cpuL_wrap, &get_immediate_cpuB_wrap);
+#endif
 
 #if MTK_TS_CPU_RT
 	{
@@ -2701,6 +2640,46 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 	}
 
 	tscpu_create_fs();
+
+	return 0;
+}
+
+static int get_gpu_power_info(void)
+{
+	int num, i = 0;
+	struct mt_gpufreq_power_table_info *freqs;
+
+	tscpu_dprintk("%s\n", __func__);
+
+	num = mt_gpufreq_get_power_table_num();
+	freqs = mt_gpufreq_get_power_table();
+
+	if (freqs == NULL)
+		return -EPROBE_DEFER;
+
+	mtk_gpu_power =
+		kzalloc((num) *
+			sizeof(struct mt_gpufreq_power_table_info), GFP_KERNEL);
+
+	if (mtk_gpu_power == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < num; i++) {
+		mtk_gpu_power[i].gpufreq_khz = freqs[i].gpufreq_khz;
+		mtk_gpu_power[i].gpufreq_power = freqs[i].gpufreq_power;
+
+		tscpu_dprintk("[%d].gpufreq_khz=%u, .gpufreq_power=%u\n",
+			i, freqs[i].gpufreq_khz, freqs[i].gpufreq_power);
+	}
+
+	gpu_max_opp = mt_gpufreq_get_seg_max_opp_index();
+	Num_of_GPU_OPP = gpu_max_opp + mt_gpufreq_get_dvfs_table_num();
+
+	/* error check */
+	if (gpu_max_opp >= num || Num_of_GPU_OPP > num || !Num_of_GPU_OPP) {
+		gpu_max_opp = 0;
+		Num_of_GPU_OPP = num;
+	}
 
 	return 0;
 }

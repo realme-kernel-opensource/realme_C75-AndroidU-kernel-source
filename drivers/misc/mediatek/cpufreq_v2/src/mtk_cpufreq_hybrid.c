@@ -160,7 +160,7 @@ void parse_log_content(unsigned int *local_buf, int idx)
 
 spinlock_t cpudvfs_lock;
 static struct task_struct *Ripi_cpu_dvfs_task;
-#ifndef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
+#if !IS_ENABLED(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V2)
 static DECLARE_COMPLETION(cpuhvfs_setup_done);
 #elif IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V1)
@@ -181,15 +181,15 @@ int Ripi_cpu_dvfs_thread(void *data)
 	uint32_t pwdata[4];
 	struct cpufreq_freqs freqs;
 
-	int previous_limit = -1;
-	int previous_base = -1;
+	int previous_limit = 0;
+	int previous_base = 15;
 	int num_log;
 	unsigned int buf[ENTRY_EACH_LOG] = {0};
 	unsigned int bk_log_offs;
 	unsigned int buf_freq;
 	unsigned long long tf_sum, t_diff, avg_f;
 	int j = 0;
-#ifndef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
+#if !IS_ENABLED(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V2)
 #elif IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V1)
 	int ret;
@@ -199,7 +199,7 @@ int Ripi_cpu_dvfs_thread(void *data)
 #endif
 	memset(pwdata, 0, sizeof(pwdata));
 	/* tag_pr_info("CPU DVFS received thread\n"); */
-#ifndef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
+#if !IS_ENABLED(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V2)
 	wait_for_completion(&cpuhvfs_setup_done);
 #elif IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V1)
@@ -228,7 +228,7 @@ int Ripi_cpu_dvfs_thread(void *data)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V2)
 		mtk_ipi_recv(&sspm_ipidev, IPIR_C_GPU_DVFS);
 #else
-		mtk_ipi_recv(&mcupm_ipidev, CH_S_CPU_DVFS);
+		mtk_ipi_recv(get_mcupm_ipidev(), CH_S_CPU_DVFS);
 #endif
 #else
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_SSPM_VER_V2)
@@ -316,48 +316,16 @@ int Ripi_cpu_dvfs_thread(void *data)
 						break;
 				}
 			}
-
 			/* Avoid memory issue */
 			if (p->mt_policy && p->mt_policy->governor &&
-				/* p->mt_policy->governor_enabled && */
-				(p->mt_policy->cpu < 10) &&
-				(p->mt_policy->cpu >= 0)) {
+					(p->mt_policy->cpu < 10) &&
+					(p->mt_policy->cpu >= 0)) {
 				int cid;
-
-				previous_limit = p->idx_opp_ppm_limit;
-				previous_base = p->idx_opp_ppm_base;
-				if (num_log > 0) {
-					p->idx_opp_ppm_limit =
-	(int)(log_box_parsed[num_log - 1].cluster_opp_cfg[i].limit_idx);
-					p->idx_opp_ppm_base =
-	(int)(log_box_parsed[num_log - 1].cluster_opp_cfg[i].base_idx);
-				}
-
-				if (p->idx_opp_ppm_base > 15 ||
-					p->idx_opp_ppm_base < 0)
-					p->idx_opp_ppm_base = 15;
-
-				if (p->idx_opp_ppm_limit > 15 ||
-					p->idx_opp_ppm_limit < 0)
-					p->idx_opp_ppm_limit = 0;
 
 				if (j < p->idx_opp_ppm_limit)
 					j = p->idx_opp_ppm_limit;
-
 				if (j > p->idx_opp_ppm_base)
 					j = p->idx_opp_ppm_base;
-
-				/* Update policy min/max */
-
-				p->mt_policy->min =
-					cpu_dvfs_get_freq_by_idx(p,
-					p->idx_opp_ppm_base);
-				p->mt_policy->max =
-					cpu_dvfs_get_freq_by_idx(p,
-					p->idx_opp_ppm_limit);
-				p->mt_policy->min =
-					(p->mt_policy->min > p->mt_policy->max) ?
-					p->mt_policy->max : p->mt_policy->min;
 
 #ifdef SINGLE_CLUSTER
 				cid =
@@ -368,6 +336,7 @@ int Ripi_cpu_dvfs_thread(void *data)
 #endif
 
 #ifdef MET_READY
+
 				if (cid == 0) {
 					met_tag_oneshot(0, "sched_dvfs_max_c0",
 							p->mt_policy->max);
@@ -392,6 +361,8 @@ int Ripi_cpu_dvfs_thread(void *data)
 				if (p->idx_opp_tbl != j ||
 				(p->idx_opp_ppm_limit != previous_limit) ||
 				(p->idx_opp_ppm_base != previous_base)) {
+					previous_limit = p->idx_opp_ppm_limit;
+					previous_base = p->idx_opp_ppm_base;
 					freqs.old = cpu_dvfs_get_cur_freq(p);
 					freqs.new =
 					cpu_dvfs_get_freq_by_idx(p, j);
@@ -429,7 +400,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -452,7 +423,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -476,7 +447,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 				IPI_SEND_POLLING, cdvfs_d,
 				sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE,
@@ -506,7 +477,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -528,7 +499,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -550,7 +521,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -574,7 +545,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -599,7 +570,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 4000);
@@ -622,7 +593,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 			IPI_SEND_POLLING, cdvfs_d,
 			sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -647,7 +618,7 @@ int dvfs_to_mcupm_command(u32 cmd, struct cdvfs_data *cdvfs_d)
 #if defined(USE_SSPM_VER_V2)
 		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_GPU_DVFS,
 #else
-		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_CPU_DVFS,
+		ret = mtk_ipi_send_compl(get_mcupm_ipidev(), CH_S_CPU_DVFS,
 #endif
 				IPI_SEND_POLLING, cdvfs_d,
 				sizeof(struct cdvfs_data)/MBOX_SLOT_SIZE, 2000);
@@ -1169,7 +1140,6 @@ int cpuhvfs_set_dvfs(int cluster_id, unsigned int freq)
 
 	/* [3:0] freq_idx */
 	freq_idx = _search_available_freq_idx(p, freq, 0);
-
 	csram_write((OFFS_WFI_S + (cluster_id * 4)), freq_idx);
 
 	return 0;
@@ -1908,7 +1878,7 @@ int cpuhvfs_pre_module_init(void)
 	if (ret)
 		return -1;
 #else
-	mtk_ipi_register(&mcupm_ipidev, CH_S_CPU_DVFS, NULL, NULL,
+	mtk_ipi_register(get_mcupm_ipidev(), CH_S_CPU_DVFS, NULL, NULL,
 		(void *) &cpufreq_buf);
 #endif
 #else

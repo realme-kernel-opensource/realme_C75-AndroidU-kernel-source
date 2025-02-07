@@ -1,4 +1,6 @@
 subdir-ccflags-y += -Werror
+ccflags-y += -I$(srctree)/drivers/gpu/drm/oplus
+ccflags-y += -I$(srctree)/drivers/gpu/drm/mediatek/mediatek_v2
 
 mediatek-drm-y := mtk_drm_drv.o \
 		  mtk_disp_tdshp.o \
@@ -65,6 +67,9 @@ mediatek-drm-y += mtk_dp_intf.o \
 	mtk_dp_hal.o \
 	mtk_dp_debug.o
 
+#for 6382 bridge
+mediatek-drm-y += mtk_disp_bdg.o
+
 ifeq (yy, $(CONFIG_MTK_TEE_GP_SUPPORT)$(CONFIG_TRUSTONIC_TEE_SUPPORT))
 obj-y += ca/
 ccflags-y += -DDPTX_HDCP_ENABLE
@@ -72,7 +77,38 @@ obj-y += mtk_dp_hdcp1x.o \
 	mtk_dp_hdcp2.o
 endif
 
+ifeq ($(CONFIG_PXLW_IRIS),y)
+mediatek-drm-y += iris_cmds.o \
+				iris_i2c.o \
+				iris_i3c.o \
+				iris_loop_back.o \
+				iris_extended.o \
+				iris_gpio.o \
+				iris_ioctl.o \
+				iris_frc.o \
+				iris_pq.o \
+				iris_lp.o \
+				iris_lightup.o \
+				iris_lightup_ocp.o \
+				iris_lut.o \
+				iris_mode_switch.o \
+				iris_timing_switch.o \
+				iris_dbg.o
+endif
+
 mediatek-drm-$(CONFIG_DRM_FBDEV_EMULATION) += mtk_drm_fbdev.o
+
+#build oplus file into mediatek_drm.ko
+mediatek-drm-y += ../../oplus/oplus_display_private_api.o \
+         ../../oplus/oplus_display_panel_power.o \
+         ../../oplus/oplus_display_common.o \
+         ../../oplus/oplus_display_dc.o \
+         ../../oplus/oplus_display_onscreenfingerprint.o \
+         ../../oplus/oplus_display_mtk_debug.o \
+         ../../oplus/oplus_display_mtk_debug.o \
+         ../../oplus/oplus_display_panel.o \
+         ../../oplus/oplus_adfr.o \
+         ../../oplus/oplus_display_temp_compensation.o
 
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek-drm.o
 obj-$(CONFIG_DRM_MEDIATEK) += mtk_sync.o
@@ -91,6 +127,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/scp/include/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
              -I$(srctree)/drivers/misc/mediatek/smi/			\
              -I$(srctree)/drivers/misc/mediatek/mmp/			\
+             -I$(srctree)/drivers/misc/mediatek/spi_slave_drv/          \
+             -I$(srctree)/drivers/misc/mediatek/base/power/include/     \
              -I$(srctree)/drivers/misc/mediatek/mmdvfs/			\
              -I$(srctree)/drivers/misc/mediatek/pmic/			\
              -I$(srctree)/drivers/iommu/				\
@@ -107,15 +145,25 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
              -I$(srctree)/drivers/misc/mediatek/slbc/ \
              -I$(srctree)/drivers/misc/mediatek/cmdq/mailbox/ \
              -I$(srctree)/drivers/misc/mediatek/clkbuf/v1/inc/ \
-             -I$(srctree)/drivers/dma-buf/heaps/ \
+             -I$(srctree)/drivers/dma-buf/heaps/          \
+	     -I$(srctree)/drivers/misc/mediatek/cmdq/bridge
+
+ifneq ($(filter y m, $(CONFIG_MTK_MDP)),)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/mdp/
+ccflags-y += -DSHARE_WROT_SRAM
+endif
 
 ccflags-$(CONFIG_MTK_CMDQ_MBOX_EXT) += -I$(srctree)/drivers/misc/mediatek/cmdq/mailbox
+subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion/ \
+		    -I$(srctree)/drivers/staging/android/ion/mtk
 
 #ccflags-y += -DDRM_MMPATH
 ccflags-y += -DNOT_SUPPORT_CABC_HW
 ccflags-y += -DDISP_MDP_COLOR_ON
 ccflags-y += -DCCORR_SUPPORT
-
+#ifdef OPLUS_FEATURE_DISPLAY
+ccflags-y += -DOPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION
+#endif OPLUS_FEATURE_DISPLAY
 
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/

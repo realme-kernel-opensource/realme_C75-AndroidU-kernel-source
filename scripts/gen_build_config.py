@@ -63,9 +63,6 @@ def main(**args):
     if not os.path.exists(gen_build_config_dir):
         os.makedirs(gen_build_config_dir)
 
-    mode_config = ''
-    if (build_mode == 'eng') or (build_mode == 'userdebug'):
-        mode_config = '%s.config' % (build_mode)
     project_defconfig_name = ''
     if kernel_defconfig:
         project_defconfig_name = kernel_defconfig
@@ -85,6 +82,13 @@ def main(**args):
         print 'Error: cannot find project defconfig file under ' + abs_kernel_dir
         sys.exit(2)
     project_defconfig = '%s/%s/%s' % (abs_kernel_dir, defconfig_dir, project_defconfig_name)
+
+    mode_config = ''
+    if (build_mode == 'eng') or (build_mode == 'userdebug'):
+        kernel_bit = ''
+        if kernel_arch == 'arm':
+            kernel_bit = '_32'
+        mode_config = '%s%s.config' % (build_mode, kernel_bit)
 
     special_defconfig = ''
     build_config = ''
@@ -117,8 +121,13 @@ def main(**args):
         print 'Please check whether ' + project_defconfig + ' defined CONFIG_BUILD_CONFIG_FILE.'
         sys.exit(2)
 
-    file_text.append("PATH=${ROOT_DIR}/../prebuilts/perl/linux-x86/bin:${ROOT_DIR}/build/build-tools/path/linux-x86:/usr/bin:/bin")
-    file_text.append("MAKE_GOALS=\"all\"")
+    file_text.append("PATH=${ROOT_DIR}/../prebuilts/perl/linux-x86/bin:${ROOT_DIR}/prebuilts/kernel-build-tools/linux-x86/bin:/usr/bin:/bin:$PATH")
+    file_text.append("HERMETIC_TOOLCHAIN=")
+    file_text.append("DTC='${OUT_DIR}/scripts/dtc/dtc'")
+    file_text.append("DEPMOD=")
+    file_text.append("MAKE_GOALS=\"${MAKE_GOALS}")
+    file_text.append("all")
+    file_text.append("\"")
     file_text.append("TRIM_NONLISTED_KMI=")
     file_text.append("KMI_SYMBOL_LIST_STRICT_MODE=")
     file_text.append("MODULES_ORDER=")
@@ -132,13 +141,14 @@ def main(**args):
 
     all_defconfig = ''
     pre_defconfig_cmds = ''
-    if not special_defconfig:
+    if (not special_defconfig) or (kernel_arch == 'arm'):
         all_defconfig = '%s %s %s' % (project_defconfig_name, kernel_defconfig_overlays, mode_config)
     else:
         # get relative path from {kernel dir} to curret working dir
         rel_kernel_path = 'REL_KERNEL_PATH=`./${KERNEL_DIR}/scripts/get_rel_path.sh ${ROOT_DIR} %s`' % (kernel_dir)
         file_text.append(rel_kernel_path)
         all_defconfig = '%s ../../../${REL_KERNEL_PATH}/${OUT_DIR}/%s.config %s %s' % (special_defconfig, project, kernel_defconfig_overlays, mode_config)
+        print 'all_defconfig is ' + all_defconfig
         pre_defconfig_cmds = 'PRE_DEFCONFIG_CMDS=\"cp -p ${KERNEL_DIR}/%s/%s ${OUT_DIR}/%s.config\"' % (defconfig_dir, project_defconfig_name, project)
     all_defconfig = 'DEFCONFIG=\"%s\"' % (all_defconfig.strip())
     file_text.append(all_defconfig)

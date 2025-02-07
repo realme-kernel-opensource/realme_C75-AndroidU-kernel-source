@@ -15,6 +15,9 @@
 
 #include "mt-plat/sync_write.h"
 
+
+
+
 #ifdef GPUFREQ_NOT_READY
 struct mt_gpufreq_power_table_info {
 	unsigned int gpufreq_khz;

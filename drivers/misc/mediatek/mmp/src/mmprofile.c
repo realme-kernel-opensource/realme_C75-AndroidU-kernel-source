@@ -818,7 +818,9 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 	struct mmprofile_event_t *p_event = NULL;
 	unsigned int index;
 	unsigned int lock;
-
+#ifdef OPLUS_BUG_STABILITY
+	return ;
+#endif /*OPLUS_BUG_STABILITY*/
 	if (!mmprofile_globals.enable)
 		return;
 	if ((event >= MMPROFILE_MAX_EVENT_COUNT) ||
@@ -2324,12 +2326,12 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 	} else if (mmprofile_globals.selected_buffer ==
 		MMPROFILE_PRIMARY_BUFFER) {
 
+		mmprofile_init_buffer();
+
 		/* check user space buffer length */
 		if ((vma->vm_end - vma->vm_start) !=
 			mmprofile_globals.buffer_size_bytes)
 			return -EINVAL;
-
-		mmprofile_init_buffer();
 
 		if (!bmmprofile_init_buffer)
 			return -EAGAIN;

@@ -18,6 +18,7 @@ enum led_mode {
 };
 struct led_conf_info {
 	int max_hw_brightness;
+	int min_hw_brightness;
 	int limit_hw_brightness;
 	int min_brightness;
 	unsigned int aal_enable;
@@ -31,6 +32,7 @@ struct led_conf_info {
 #ifdef CONFIG_LEDS_MT_BRIGHTNESS_HW_CHANGED
 	int brightness_hw_changed;
 	struct kernfs_node	*brightness_hw_changed_kn;
+    int connector_id;
 #endif
 	};
 
@@ -42,6 +44,10 @@ static inline void mtk_leds_notify_brightness_hw_changed(
 	struct led_conf_info *led_conf, enum led_brightness brightness) { }
 #endif
 
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+void apollo_set_brightness_for_show(unsigned int level);
+bool oplus_apollo_supported(void);
+#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 int mtk_leds_register_notifier(struct notifier_block *nb);
 int mtk_leds_unregister_notifier(struct notifier_block *nb);
 int mtk_leds_brightness_set(char *name, int bl_1024);

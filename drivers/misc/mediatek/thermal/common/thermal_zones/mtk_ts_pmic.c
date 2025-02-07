@@ -175,12 +175,12 @@ static int mtktspmic_unbind(struct thermal_zone_device *thermal,
 	} else
 		return 0;
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtktspmic_info(
-	//		"[%s] error unbinding cooling dev\n", __func__);
-//
-	//	return -EINVAL;
-//	}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtktspmic_info(
+			"[%s] error unbinding cooling dev\n", __func__);
+
+		return -EINVAL;
+	}
 
 	mtktspmic_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
@@ -663,8 +663,8 @@ static int mtk_ts_pmic_probe(struct platform_device *pdev)
 	struct proc_dir_entry *mtktspmic_dir = NULL;
 	struct mt6397_chip *chip;
 
-	mtktspmic_debug_log = 1;
-	mtktspmic_info("[%s]\n", __func__);
+//	mtktspmic_debug_log = 1;
+//	mtktspmic_info("[%s]\n", __func__);
 	chip = (struct mt6397_chip *)dev_get_drvdata(pdev->dev.parent);
 	mtktspmic_info("[%s]\n", __func__);
 
@@ -682,11 +682,15 @@ static int mtk_ts_pmic_probe(struct platform_device *pdev)
 	 *				"Need to checking this !!!!!\n");
 	 */
 
+	if (chip == NULL)
+		return 0;
 	mtktspmic_cali_prepare(chip->regmap);
 	mtktspmic_cali_prepare2();
 
 #if defined(THERMAL_USE_IIO_CHANNEL)
-	mtktspmic_get_from_dts(pdev);
+	err = mtktspmic_get_from_dts(pdev);
+	if (err)
+		return err;
 #endif
 
 	err = mtktspmic_register_cooler();

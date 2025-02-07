@@ -22,7 +22,11 @@
 #include <linux/of_address.h>
 #if IS_ENABLED(CONFIG_MTK_USB_TYPEC)
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
+#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
+#include "../../../power/oplus/pd_ext/inc/tcpm.h"
+#else
 #include <tcpm.h>
+#endif
 #endif
 #endif
 #include <linux/workqueue.h>
@@ -356,7 +360,9 @@ static void do_host_work(struct work_struct *data)
 	int usb_clk_state = NO_CHANGE;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
-	/* struct mt_usb_glue *glue = mtk_musb->glue; */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct mt_usb_glue *glue = mtk_musb->glue;
+#endif
 
 	/*
 	 * kernel_init_done should be set in
@@ -445,7 +451,13 @@ static void do_host_work(struct work_struct *data)
 		musb_writeb(mtk_musb->mregs,
 				MUSB_DEVCTL, (devctl | MUSB_DEVCTL_SESSION));
 
-		phy_set_mode(glue->phy, PHY_MODE_USB_HOST);
+		/* phy_set_mode(glue->phy, PHY_MODE_USB_HOST); */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if ((glue->phy) && (glue->phy->ops) && (glue->phy->ops->set_mode))
+		{
+			glue->phy->ops->set_mode(glue->phy, PHY_MODE_USB_HOST, 0);
+		}
+#endif
 		set_usb_phy_mode(PHY_MODE_USB_HOST);
 
 		musb_start(mtk_musb);

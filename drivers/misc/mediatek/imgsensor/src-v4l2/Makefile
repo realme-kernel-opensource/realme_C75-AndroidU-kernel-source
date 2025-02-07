@@ -27,6 +27,12 @@ imgsensor-objs := \
 	adaptor-fsync-ctrls.o \
 	adaptor-trace.o \
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+ifeq ($(CONFIG_OPLUS_CAM_EVENT_REPORT),m)
+	imgsensor-objs += oplus_cam_olc_exception.o
+endif
+#endif
+
 define FILTER_DRV
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/camera_project/$(IMGSENSOR_PROJECT)/$(1)),)
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/common/$(1)),)
@@ -46,6 +52,11 @@ unknown_drv :=
 endif
 ifneq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/camera_project/k6895v1_64_95t_alpha/$(1)),)
 alpha_drv_k6895 += $(1)
+total_subdrvs += $(1)
+unknown_drv :=
+endif
+ifneq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/camera_project/k6983v1_64_foldable/$(1)),)
+6983_foldable_drv += $(1)
 total_subdrvs += $(1)
 unknown_drv :=
 endif
@@ -94,6 +105,11 @@ endif
 ifneq ($(alpha_drv_k6895),)
 $(info alpha_drv_k6895 : $(alpha_drv_k6895))
 $(foreach drv,$(alpha_drv_k6895),$(eval $(call add_subdrv,camera_project/k6895v1_64_95t_alpha/$(drv))))
+endif
+
+ifneq ($(6983_foldable_drv),)
+$(info 6983_foldable_drv : $(6983_foldable_drv))
+$(foreach drv,$(6983_foldable_drv),$(eval $(call add_subdrv,camera_project/k6983v1_64_foldable/$(drv))))
 endif
 
 comma := ,

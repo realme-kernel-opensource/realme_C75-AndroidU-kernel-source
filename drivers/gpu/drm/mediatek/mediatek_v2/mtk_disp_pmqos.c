@@ -16,6 +16,7 @@
 #include <soc/mediatek/mmqos.h>
 
 #include "mtk_drm_assert.h"
+#include "mtk_disp_bdg.h"
 
 #ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
 #include <linux/interconnect.h>
@@ -30,6 +31,77 @@ static u32 *g_freq_steps;
 static int g_freq_level[CRTC_NUM] = {-1, -1, -1};
 static long g_freq;
 static int step_size = 1;
+static u32 cam_hrt_bw = 0;
+
+#ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
+struct hrt_mmclk_request {
+	int layer_num;
+	int volt;
+};
+
+/* aspect ratio <= 18 : 9 */
+struct hrt_mmclk_request hrt_bdg_fhd_mt6768[] = {
+	{20, 700000},
+	{40, 700000},
+	{45, 800000},
+};
+
+/* aspect ratio > 18 : 9 */
+struct hrt_mmclk_request hrt_bdg_fhd_plus_mt6768[] = {
+	{20, 700000},
+	{30, 700000},
+	{40, 800000},
+};
+
+/* aspect ratio <= 18 : 9 */
+struct hrt_mmclk_request hrt_hd_60hz_mt6768[] = {
+	{75, 650000},
+	{135, 700000},
+	{155, 800000},
+};
+
+/* aspect ratio > 18 : 9 */
+struct hrt_mmclk_request hrt_hd_plus_60hz_mt6768[] = {
+	{65, 650000},
+	{110, 700000},
+	{135, 800000},
+};
+
+/* aspect ratio <= 18 : 9 */
+struct hrt_mmclk_request hrt_hd_90hz_mt6768[] = {
+	{50, 650000},
+	{90, 700000},
+	{103, 800000},
+};
+
+/* aspect ratio > 18 : 9 */
+struct hrt_mmclk_request hrt_hd_plus_90hz_mt6768[] = {
+	{43, 650000},
+	{73, 700000},
+	{90, 800000},
+};
+
+/* aspect ratio <= 18 : 9 */
+struct hrt_mmclk_request hrt_hd_120hz_mt6768[] = {
+	{35, 650000},
+	{60, 700000},
+	{70, 800000},
+};
+
+/* aspect ratio <= 18 : 9 */
+struct hrt_mmclk_request hrt_fhd_60hz_mt6768[] = {
+	{35, 650000},
+	{60, 700000},
+	{70, 800000},
+};
+
+/* aspect ratio > 18 : 9 */
+struct hrt_mmclk_request hrt_fhd_plus_60hz_mt6768[] = {
+	{30, 650000},
+	{50, 700000},
+	{60, 800000},
+};
+#endif
 
 void mtk_disp_pmqos_get_icc_path_name(char *buf, int buf_len,
 				struct mtk_ddp_comp *comp, char *qos_event)
@@ -184,6 +256,105 @@ static bool mtk_disp_check_segment(struct mtk_drm_crtc *mtk_crtc,
 	return ret;
 }
 
+void mtk_disp_hrt_mmclk_request_release(struct mtk_drm_crtc *mtk_crtc)
+{
+#ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
+	int ret = 0;
+	struct drm_crtc *crtc = &mtk_crtc->base;
+	struct mtk_drm_private *priv = crtc->dev->dev_private;
+
+	/*release Vcore to lowest level*/
+	if (priv->data->mmsys_id == MMSYS_MT6768)
+		ret = regulator_set_voltage(mm_freq_request, 650000, INT_MAX);
+	DDPMSG("%s: hrt release ret=%d\n", __func__, ret);
+#endif
+}
+
+#ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
+void mtk_disp_hrt_mmclk_request_mt6768(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
+{
+	int layer_num;
+	int ret;
+	unsigned long long bw_base;
+	struct drm_crtc *crtc = &mtk_crtc->base;
+	struct mtk_drm_private *priv = crtc->dev->dev_private;
+	struct hrt_mmclk_request *req_level;
+	struct mtk_ddp_comp *output_comp = mtk_ddp_comp_request_output(mtk_crtc);
+	struct drm_display_mode *mode = NULL;
+	unsigned int max_fps = 0, tmp = 0;
+	bool is_fhd_size = mtk_crtc->base.mode.hdisplay > 800;
+	bool is_aspect_ratio_plus = ((mtk_crtc->base.mode.vdisplay*100) /
+					mtk_crtc->base.mode.hdisplay) > 200 /*18:9*/;
+
+	bw_base = mtk_drm_primary_frame_bw(crtc);
+	if (bw_base != 0) {
+		layer_num = bw * 10 / bw_base;
+		if (layer_num != 0) {
+			tmp = cam_hrt_bw * 10 / bw_base;
+			DDPMSG("%s, disp_bw:%d layer_num:%d, cam_bw:%d layer_num:%d\n",
+				__func__, bw, layer_num, cam_hrt_bw, tmp);
+			layer_num += tmp;
+		}
+	} else {
+		DDPINFO("%s-error: frame_bw is zero, skip request mmclk\n", __func__);
+		return;
+	}
+
+	if (is_bdg_supported()) {
+		if (is_aspect_ratio_plus)
+			req_level = hrt_bdg_fhd_plus_mt6768;
+		else
+			req_level = hrt_bdg_fhd_mt6768;
+	} else {
+		if (is_fhd_size) {
+			if (is_aspect_ratio_plus)
+				req_level = hrt_fhd_plus_60hz_mt6768;
+			else
+				req_level = hrt_fhd_60hz_mt6768;
+		} else {
+			mtk_ddp_comp_io_cmd(output_comp, NULL, DSI_GET_MODE_BY_MAX_VREFRESH, &mode);
+			if (mode) {
+				max_fps = drm_mode_vrefresh(mode);
+				DDPMSG("%s, max_fps:%d\n", __func__, max_fps);
+			}
+			if (max_fps == 120)
+				req_level = hrt_hd_120hz_mt6768;
+			else if (max_fps == 90) {
+				if (is_aspect_ratio_plus)
+					req_level = hrt_hd_plus_90hz_mt6768;
+				else
+					req_level = hrt_hd_90hz_mt6768;
+			} else {
+				if (is_aspect_ratio_plus)
+					req_level = hrt_hd_plus_60hz_mt6768;
+				else
+					req_level = hrt_hd_60hz_mt6768;
+			}
+		}
+	}
+
+	if (layer_num <= req_level[0].layer_num) {
+		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL2]);
+		ret = regulator_set_voltage(mm_freq_request, req_level[0].volt, INT_MAX);
+		if (ret)
+			DDPPR_ERR("%s:regulator_set_voltage fail\n", __func__);
+		DDPINFO("%s layer_num = %d, volt = %d\n", __func__, layer_num, req_level[0].volt);
+	} else if (layer_num > req_level[0].layer_num && layer_num <= req_level[1].layer_num) {
+		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL1]);
+		ret = regulator_set_voltage(mm_freq_request, req_level[1].volt, INT_MAX);
+		if (ret)
+			DDPPR_ERR("%s:regulator_set_voltage fail\n", __func__);
+		DDPINFO("%s layer_num = %d, volt = %d\n", __func__, layer_num, req_level[1].volt);
+	} else if (layer_num > req_level[1].layer_num) {
+		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL0]);
+		ret = regulator_set_voltage(mm_freq_request, req_level[2].volt, INT_MAX);
+		if (ret)
+			DDPPR_ERR("%s:regulator_set_voltage fail\n", __func__);
+		DDPINFO("%s layer_num = %d, volt = %d\n", __func__, layer_num, req_level[2].volt);
+	}
+}
+#endif
+
 int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 {
 	struct drm_crtc *crtc = &mtk_crtc->base;
@@ -191,23 +362,26 @@ int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 	struct mtk_ddp_comp *comp;
 	unsigned int tmp;
 	int i, j, ret = 0;
-
 	tmp = bw;
 
-	for (i = 0; i < DDP_PATH_NR; i++) {
-		if (mtk_crtc->ddp_mode < DDP_MODE_NR) {
-			if (!(mtk_crtc->ddp_ctx[mtk_crtc->ddp_mode].req_hrt[i]))
+	if (priv->data->mmsys_id == MMSYS_MT6768) {
+		DDPINFO("%s: no need to set module hrt bw for legacy!\n", __func__);
+	} else {
+		for (i = 0; i < DDP_PATH_NR; i++) {
+			if (mtk_crtc->ddp_mode < DDP_MODE_NR) {
+				if (!(mtk_crtc->ddp_ctx[mtk_crtc->ddp_mode].req_hrt[i]))
+					continue;
+			}
+			for_each_comp_in_crtc_target_path(comp, mtk_crtc, j, i) {
+				ret |= mtk_ddp_comp_io_cmd(comp, NULL, PMQOS_SET_HRT_BW,
+							&tmp);
+			}
+			if (!mtk_crtc->is_dual_pipe)
 				continue;
-		}
-		for_each_comp_in_crtc_target_path(comp, mtk_crtc, j, i) {
-			ret |= mtk_ddp_comp_io_cmd(comp, NULL, PMQOS_SET_HRT_BW,
-						   &tmp);
-		}
-		if (!mtk_crtc->is_dual_pipe)
-			continue;
-		for_each_comp_in_dual_pipe(comp, mtk_crtc, j, i)
-			ret |= mtk_ddp_comp_io_cmd(comp, NULL, PMQOS_SET_HRT_BW,
-					&tmp);
+			for_each_comp_in_dual_pipe(comp, mtk_crtc, j, i)
+				ret |= mtk_ddp_comp_io_cmd(comp, NULL, PMQOS_SET_HRT_BW,
+						&tmp);
+ 		}
 	}
 
 	if (ret == RDMA_REQ_HRT)
@@ -231,14 +405,8 @@ int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 	}
 
 #ifdef CONFIG_MTK_FB_MMDVFS_SUPPORT
-	if (tmp == 0)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL2]);
-	else if (tmp > 0 && tmp <= 3500)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL1]);
-	else if (tmp > 3500)
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL0]);
-	else
-		icc_set_bw(priv->hrt_bw_request, 0, disp_perfs[HRT_LEVEL_LEVEL2]);
+	if (priv->data->mmsys_id == MMSYS_MT6768 || priv->data->mmsys_id == MMSYS_MT6765)
+		mtk_disp_hrt_mmclk_request_mt6768(mtk_crtc, tmp);
 #else
 	mtk_icc_set_bw(priv->hrt_bw_request, 0, MBps_to_icc(tmp));
 #endif
@@ -267,6 +435,8 @@ int mtk_disp_hrt_cond_change_cb(struct notifier_block *nb, unsigned long value,
 				void *v)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(dev_crtc);
+	struct drm_crtc *crtc = &mtk_crtc->base;
+	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	int i, ret;
 	unsigned int hrt_idx;
 
@@ -284,6 +454,10 @@ int mtk_disp_hrt_cond_change_cb(struct notifier_block *nb, unsigned long value,
 		DDPMSG("DISP BW Throttle start\n");
 		/* TODO: concider memory session */
 		DDPINFO("CAM trigger repaint\n");
+		if (priv->data->mmsys_id == MMSYS_MT6768) {
+			cam_hrt_bw = *(u32 *)v;
+			DDPMSG("DISP BW Throttle, cam_hrt_bw:%d\n", cam_hrt_bw);
+		}
 		hrt_idx = _layering_rule_get_hrt_idx();
 		hrt_idx++;
 		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
@@ -303,6 +477,7 @@ int mtk_disp_hrt_cond_change_cb(struct notifier_block *nb, unsigned long value,
 		DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
 		break;
 	case BW_THROTTLE_END: /* CAM off */
+		cam_hrt_bw = 0;
 		DDPMSG("DISP BW Throttle end\n");
 		/* TODO: switch DC */
 		break;

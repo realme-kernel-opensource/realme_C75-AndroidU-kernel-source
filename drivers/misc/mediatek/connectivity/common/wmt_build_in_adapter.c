@@ -292,9 +292,9 @@ void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb)
 	if (cb->debug_write_cb != NULL && cb->debug_read_cb != NULL) {
 		bridge.debug_write_cb = cb->debug_write_cb;
 		bridge.debug_read_cb = cb->debug_read_cb;
-		conn_dbg_dev_init();
 	}
 
+	conn_dbg_dev_init();
 	conn_dbg_log_init();
 
 	CONNADP_INFO_FUNC("\n");

@@ -724,66 +724,6 @@ static void dpmaif_dump_register(struct hif_dpmaif_ctrl *hif_ctrl, int buf_type)
 		hif_ctrl->dpmaif_pd_sram_base + 0x00,
 		0x184);
 
-	//0x1022_d000, 0xe4
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF ul_pd register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base, 0xe4);
-
-	//0x1001_4000, 0x100
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF ul_ao register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_ao_ul_base, 0x100);
-
-	//0x1022_d100, 0x100
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF dl_pd register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base + 0x100, 0x100);
-
-	//0x1001_4400, 0x78
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF dl_ao register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_ao_ul_base + 0x400, 0x78);
-
-	//0x1022_d400, 0x100
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF ap misc register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base + 0x400, 0x100);
-
-	//0x1022_c000, 0x58
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF md misc register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_md_misc_base, 0x58);
-
-	//0x1001_4800, 0x68
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF ao misc register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_ao_ul_base + 0x800, 0x68);
-
-	//0x1022_dc00, 0x100
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF dl_pd_sram register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base + 0xc00, 0x100);
-
-	//0x1022_dd00, 0x100
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF ul_pd_sram register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base + 0xd00, 0x100);
-
-	//0x1022_de00, 0x6c
-	CCCI_BUF_LOG_TAG(hif_ctrl->md_id, buf_type, TAG,
-		"dump AP DPMAIF pd_sram_misc register\n");
-	ccci_util_mem_dump(hif_ctrl->md_id, buf_type,
-		hif_ctrl->dpmaif_pd_ul_base + 0xe00, 0x6c);
-
 	dpmaif_dump_rx_pit(hif_ctrl);
 
 #ifdef ENABLE_DPMAIF_ISR_LOG
@@ -2211,14 +2151,6 @@ static int dpmaif_tx_done_kernel_thread(void *arg)
 				__func__, txq->index);
 			continue;
 		}
-
-		if (dpmaif_wait_resume_done()) {
-			//if resume not done, will waiting 1ms
-			hrtimer_start(&txq->tx_done_timer,
-				ktime_set(0, 1000000), HRTIMER_MODE_REL);
-			continue;
-		}
-
 		if (atomic_read(&txq->tx_resume_done)) {
 			CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
 				"txq%d done/resume: 0x%x, 0x%x, 0x%x\n",
@@ -2859,24 +2791,6 @@ static void dpmaif_irq_cb(struct hif_dpmaif_ctrl *hif_ctrl)
 		CCCI_DEBUG_LOG(hif_ctrl->md_id, TAG,
 			"DPMAIF IRQ L2(%x/%x)(%x/%x)!\n",
 			L2TISAR0, L2RISAR0, L2TIMR0, L2RIMR0);
-
-	/* check UL&DL mask status register */
-	if (((L2TIMR0 & AP_UL_L2INTR_Msk_Check) != AP_UL_L2INTR_Msk_Check) ||
-		((L2RIMR0 & AP_DL_L2INTR_Msk_Check) != AP_DL_L2INTR_Msk_Check)) {
-		/* if has error bit, set mask */
-		DPMA_WRITE_AO_UL(NRL2_DPMAIF_AO_UL_AP_L2TIMSR0, ~(AP_UL_L2INTR_En_Msk));
-		/* use msk to clear dummy interrupt */
-		DPMA_WRITE_PD_MISC(DPMAIF_PD_AP_UL_L2TISAR0, ~(AP_UL_L2INTR_En_Msk));
-
-		/* if has error bit, set mask */
-		DPMA_WRITE_AO_UL(NRL2_DPMAIF_AO_UL_APDL_L2TIMSR0, ~(AP_DL_L2INTR_En_Msk));
-		/* use msk to clear dummy interrupt */
-		DPMA_WRITE_PD_MISC(DPMAIF_PD_AP_DL_L2TISAR0, ~(AP_DL_L2INTR_En_Msk));
-		CCCI_NORMAL_LOG(0, TAG, "[%s]mask:dl=0x%x(0x%x) ul=0x%x(0x%x)\n",
-			__func__,
-			DPMA_READ_AO_UL(NRL2_DPMAIF_AO_UL_APDL_L2TIMR0), L2RIMR0,
-			DPMA_READ_AO_UL(NRL2_DPMAIF_AO_UL_AP_L2TIMR0), L2TIMR0);
-	}
 
 	/* TX interrupt */
 	if (L2TISAR0) {
@@ -3965,21 +3879,6 @@ static int dpmaif_resume(unsigned char hif_id)
 	/*IP don't power down before*/
 	if (drv3_dpmaif_check_power_down() == false) {
 		CCCI_DEBUG_LOG(0, TAG, "sys_resume no need restore\n");
-	} else {
-		/* DL set mask */
-		DPMA_WRITE_AO_UL(NRL2_DPMAIF_AO_UL_APDL_L2TIMSR0, ~(AP_DL_L2INTR_En_Msk));
-		/* use msk to clear dummy interrupt */
-		DPMA_WRITE_PD_MISC(DPMAIF_PD_AP_DL_L2TISAR0, ~(AP_DL_L2INTR_En_Msk));
-
-		/* UL set mask */
-		DPMA_WRITE_AO_UL(NRL2_DPMAIF_AO_UL_AP_L2TIMSR0, ~(AP_UL_L2INTR_En_Msk));
-		/* use msk to clear dummy interrupt */
-		DPMA_WRITE_PD_MISC(DPMAIF_PD_AP_UL_L2TISAR0, ~(AP_UL_L2INTR_En_Msk));
-
-		CCCI_NORMAL_LOG(0, TAG, "[%s]mask:dl=0x%x ul=0x%x\n",
-			__func__,
-			DPMA_READ_AO_UL(NRL2_DPMAIF_AO_UL_APDL_L2TIMR0),
-			DPMA_READ_AO_UL(NRL2_DPMAIF_AO_UL_AP_L2TIMR0));
 	}
 
 	return 0;
@@ -4035,10 +3934,6 @@ static int dpmaif_pre_stop(unsigned char hif_id)
 {
 	if (hif_id != DPMAIF_HIF_ID)
 		return -1;
-
-	if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_PWROFF
-		|| dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN)
-		return 0;
 
 	dpmaif_stop_hw();
 
@@ -4113,8 +4008,11 @@ static int dpmaif_init_cap(struct device *dev)
 		dpmaif_ctrl->dpmaif_reset_pd_base);
 
 	if (of_property_read_u32(dev->of_node, "dl_bat_entry_size",
-					&dpmaif_ctrl->dl_bat_entry_size))
+					&dpmaif_ctrl->dl_bat_entry_size)){
 		dpmaif_ctrl->dl_bat_entry_size = 16384;
+		if(totalram_pages() < (6 * (SZ_1G >> PAGE_SHIFT)))
+			dpmaif_ctrl->dl_bat_entry_size = 8192;
+	}
 
 	CCCI_INIT_LOG(-1, TAG,
 		"[%s] dl_bat_entry_size: %u\n",
@@ -4292,8 +4190,13 @@ static int ccci_dpmaif_hif_init(struct device *dev)
 		CCCI_ERROR_LOG(-1, TAG, "[%s] error: alloc g_isr_log fail\n", __func__);
 #if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 	else
+#if IS_ENABLED(CONFIG_ARM64)
 		mrdump_mini_add_extra_file((unsigned long)g_isr_log, __pa_nodebug(g_isr_log),
 				(sizeof(struct dpmaif_isr_log) * ISR_LOG_DATA_LEN), "DPMAIF_ISR");
+#else
+		mrdump_mini_add_extra_file((unsigned long)g_isr_log, __pa(g_isr_log),
+			(sizeof(struct dpmaif_isr_log) * ISR_LOG_DATA_LEN), "DPMAIF_ISR");
+#endif
 #endif
 #endif
 	return 0;
@@ -4339,7 +4242,7 @@ int ccci_dpmaif_resume_noirq_v3(struct device *dev)
 			WAKE_SRC_HIF_DPMAIF, 0, 0, 0, 0, &res);
 
 	CCCI_NORMAL_LOG(-1, TAG,
-		"[%s] flag_1=0x%llx, flag_2=0x%llx, flag_3=0x%llx, flag_4=0x%llx\n",
+		"[%s] flag_1=0x%lx, flag_2=0x%lx, flag_3=0x%lx, flag_4=0x%lx\n",
 		__func__, res.a0, res.a1, res.a2, res.a3);
 
 	if ((!res.a0) && (res.a1 == WAKE_SRC_HIF_DPMAIF))

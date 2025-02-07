@@ -101,6 +101,10 @@ struct timer_list cm_mgr_perf_timeout_timer;
 static struct delayed_work cm_mgr_timeout_work;
 #define CM_MGR_PERF_TIMEOUT_MS	msecs_to_jiffies(100)
 
+static void cm_mgr_timeout_process(struct work_struct *work)
+{
+	icc_set_bw(cm_mgr_get_bw_path(), 0, 0);
+}
 static void cm_mgr_perf_timeout_timer_fn(struct timer_list *timer)
 {
 	if (pm_qos_update_request_status) {
@@ -333,6 +337,8 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 	if (IS_ERR(bw_path)) {
 		dev_info(&pdev->dev, "get cm-perf_bw fail\n");
 		cm_mgr_set_bw_path(NULL);
+	} else {
+		cm_mgr_set_bw_path(bw_path);
 	}
 
 	if (ret > 0) {
@@ -351,7 +357,7 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 				dvfsrc_get_required_opp_peak_bw(node, i);
 		}
 #endif /* CONFIG_MTK_DVFSRC */
-		cm_mgr_set_num_array(ret - 2);
+		cm_mgr_set_num_array(ret - 1);
 	} else
 		cm_mgr_set_num_array(0);
 	pr_info("#@# %s(%d) cm_mgr_num_array %d\n",
@@ -363,6 +369,7 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	INIT_DELAYED_WORK(&cm_mgr_timeout_work, cm_mgr_timeout_process);
 	timer_setup(&cm_mgr_perf_timeout_timer, cm_mgr_perf_timeout_timer_fn,
 			0);
 

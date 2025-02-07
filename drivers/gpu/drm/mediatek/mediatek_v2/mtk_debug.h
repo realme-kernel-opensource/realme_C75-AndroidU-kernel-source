@@ -5,23 +5,24 @@
 
 #ifndef __MTKFB_DEBUG_H
 #define __MTKFB_DEBUG_H
-
+#include "mtk_drm_plane.h"
 #define LOGGER_BUFFER_SIZE (16 * 1024)
 #define ERROR_BUFFER_COUNT 4
-#define FENCE_BUFFER_COUNT 22
-#define DEBUG_BUFFER_COUNT 30
+#define FENCE_BUFFER_COUNT 90
+#define DEBUG_BUFFER_COUNT 40
 #define DUMP_BUFFER_COUNT 10
 #define STATUS_BUFFER_COUNT 1
 #define _DRM_P_H_
-#if defined(CONFIG_MT_ENG_BUILD) || !defined(CONFIG_MTK_GMO_RAM_OPTIMIZE)
+#if IS_ENABLED(CONFIG_MT_ENG_BUILD) || !IS_ENABLED(CONFIG_MTK_GMO_RAM_OPTIMIZE)
+#define LOGGER_BUFFER_SIZE (16 * 1024)
+#else
+#define LOGGER_BUFFER_SIZE (256)
+#endif
 #define DEBUG_BUFFER_SIZE                                                      \
 	(4096 +                                                                \
 	 (ERROR_BUFFER_COUNT + FENCE_BUFFER_COUNT + DEBUG_BUFFER_COUNT +       \
 	  DUMP_BUFFER_COUNT + STATUS_BUFFER_COUNT) *                           \
 		 LOGGER_BUFFER_SIZE)
-#else
-#define DEBUG_BUFFER_SIZE 10240
-#endif
 
 extern void disp_color_set_bypass(struct drm_crtc *crtc, int bypass);
 extern void disp_ccorr_set_bypass(struct drm_crtc *crtc, int bypass);
@@ -29,19 +30,16 @@ extern void disp_gamma_set_bypass(struct drm_crtc *crtc, int bypass);
 extern void disp_dither_set_bypass(struct drm_crtc *crtc, int bypass);
 extern void disp_aal_set_bypass(struct drm_crtc *crtc, int bypass);
 extern void disp_dither_set_color_detect(struct drm_crtc *crtc, int enable);
+#if 0
 extern void mtk_trans_gain_to_gamma(struct drm_crtc *crtc,
 	unsigned int gain[3], unsigned int bl);
-extern void mtk_aal_regdump(void);
-extern void mtk_c3d_regdump(void);
-extern void mtk_ccorr_regdump(void);
-extern void mtk_color_regdump(void);
-extern void mtk_dither_regdump(void);
-extern void mtk_disp_tdshp_regdump(void);
-extern void mtk_dmdp_aal_regdump(void);
-extern void mtk_gamma_regdump(void);
+#endif
 
 extern unsigned int m_new_pq_persist_property[32];
 extern unsigned int g_gamma_data_mode;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int prete_offset;
+#endif /* OPLUS_FEATURE_DISPLAY */
 enum mtk_pq_persist_property {
 	DISP_PQ_COLOR_BYPASS,
 	DISP_PQ_CCORR_BYPASS,

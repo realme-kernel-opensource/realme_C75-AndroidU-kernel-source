@@ -1796,7 +1796,7 @@ static void mtk_iommu_iotlb_sync(struct iommu_domain *domain,
 		return;
 	}
 
-#if IS_ENABLED(CONFIG_MTK_IOMMU_MISC_DBG)
+#if IS_ENABLED(CONFIG_MTK_IOMMU_MISC_DBG) && IS_ENABLED(CONFIG_MTK_IOMMU_DEBUG)
 	if (gather->start > 0 && gather->start != ULONG_MAX)
 		mtk_iova_unmap(dom->tab_id, gather->start, length);
 #endif
@@ -1827,7 +1827,7 @@ static void mtk_iommu_sync_map(struct iommu_domain *domain, unsigned long iova,
 		return;
 	}
 
-#if IS_ENABLED(CONFIG_MTK_IOMMU_MISC_DBG)
+#if IS_ENABLED(CONFIG_MTK_IOMMU_MISC_DBG) && IS_ENABLED(CONFIG_MTK_IOMMU_DEBUG)
 	if (iova > 0 && iova != ULONG_MAX)
 		mtk_iova_map(dom->tab_id, iova, size);
 #endif
@@ -2925,8 +2925,7 @@ static int mtk_iommu_remove(struct platform_device *pdev)
 	iommu_device_sysfs_remove(&data->iommu);
 	iommu_device_unregister(&data->iommu);
 
-	if (iommu_present(&platform_bus_type))
-		bus_set_iommu(&platform_bus_type, NULL);
+	list_del(&data->list);
 
 	clk_disable_unprepare(data->bclk);
 	device_link_remove(data->smicomm_dev, &pdev->dev);
@@ -3281,7 +3280,8 @@ static const struct mtk_iommu_plat_data mt6833_data = {
 	.m4u_plat = M4U_MT6833,
 	.flags         = HAS_SUB_COMM | OUT_ORDER_WR_EN | WR_THROT_EN |
 			 HAS_BCLK | NOT_STD_AXI_MODE | IOVA_34_EN |
-			 SHARE_PGTABLE | HAS_SMI_SUB_COMM | IOMMU_SEC_BK_EN,
+			 SHARE_PGTABLE | HAS_SMI_SUB_COMM | IOMMU_SEC_BK_EN |
+			 IOMMU_NO_SMCCC | GET_DOM_ID_LEGACY,
 	.inv_sel_reg   = REG_MMU_INV_SEL_GEN2,
 	.iommu_id	= DISP_IOMMU,
 	.iommu_type     = MM_IOMMU,

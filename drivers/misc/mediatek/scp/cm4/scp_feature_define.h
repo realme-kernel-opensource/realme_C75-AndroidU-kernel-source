@@ -15,7 +15,9 @@
 #else
 #define SCP_LOGGER_ENABLE		(0)
 #endif
+
 #define SCP_DVFS_INIT_ENABLE		(1)
+
 #define SCP_RESERVED_MEM		(1)
 /* scp rescovery feature option*/
 #define SCP_RECOVERY_SUPPORT		(1)
@@ -33,11 +35,7 @@
 #define SCP_REGISTER_SUB_SENSOR		(1)
 
 /* emi mpu define, depends on legacy emi config option */
-#if IS_ENABLED(CONFIG_MEDIATEK_EMI) || IS_ENABLED(CONFIG_MTK_EMI)
 #define ENABLE_SCP_EMI_PROTECTION	(1)
-#else
-#define ENABLE_SCP_EMI_PROTECTION	(0)
-#endif
 
 #define MPU_DOMAIN_D0                    0
 #define MPU_DOMAIN_D3                    3

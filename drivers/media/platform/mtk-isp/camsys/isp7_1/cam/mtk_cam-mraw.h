@@ -17,6 +17,8 @@
 #define MAX_MRAW_VIDEO_DEV_NUM 2
 #define USING_MRAW_SCQ 1
 
+#define MRAW_CHECK_TS 0
+
 #define MRAW_WRITE_BITS(RegAddr, RegName, FieldName, FieldValue) do {\
 	union RegName reg;\
 	\
@@ -289,7 +291,10 @@ int mtk_cam_mraw_tg_config(struct mtk_mraw_device *dev, unsigned int pixel_mode)
 int mtk_cam_mraw_top_config(struct mtk_mraw_device *dev);
 int mtk_cam_mraw_dma_config(struct mtk_mraw_device *dev);
 int mtk_cam_mraw_fbc_config(struct mtk_mraw_device *dev);
-int mtk_cam_mraw_top_enable(struct mtk_mraw_device *dev);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+int mtk_cam_mraw_top_enable(struct mtk_cam_ctx *ctx,
+	struct mtk_mraw_device *dev);
+#endif
 int mtk_cam_mraw_dmao_enable(
 	struct mtk_mraw_device *dev);
 int mtk_cam_mraw_fbc_enable(

@@ -133,7 +133,8 @@ enum vdec_get_param_type {
 	GET_PARAM_PLATFORM_SUPPORTED_FIX_BUFFERS_SVP,
 	GET_PARAM_INTERLACING,
 	GET_PARAM_CODEC_TYPE,
-	GET_PARAM_INPUT_DRIVEN
+	GET_PARAM_INPUT_DRIVEN,
+	GET_PARAM_VDEC_VCU_VPUD_LOG
 };
 
 /*
@@ -162,7 +163,8 @@ enum vdec_set_param_type {
 	SET_PARAM_TOTAL_FRAME_BUFQ_COUNT,
 	SET_PARAM_FRAME_BUFFER,
 	SET_PARAM_VDEC_PROPERTY,
-	SET_PARAM_VDEC_VCP_LOG_INFO
+	SET_PARAM_VDEC_VCP_LOG_INFO,
+	SET_PARAM_VDEC_VCU_VPUD_LOG
 };
 
 /**
@@ -343,12 +345,14 @@ struct vdec_vcu_ipi_query_cap_ack {
 };
 
 /*
- * struct vdec_ipi_fb - decoder frame buffer information for set frame ipi
+ * struct vdec_ipi_fb - decoder frame buffer information
  * @vdec_fb_va  : virtual address of struct vdec_fb
  * @y_fb_dma    : dma address of Y frame buffer
  * @c_fb_dma    : dma address of C frame buffer
  * @dma_general_addr: dma address of meta
  * @general_size: meta size
+ * @poc         : picture order count of frame buffer
+ * @timestamp : timestamp of frame buffer
  * @reserved    : for 8 bytes alignment
  */
 struct vdec_ipi_fb {
@@ -359,7 +363,6 @@ struct vdec_ipi_fb {
 	__s32 general_size;
 	__u32 reserved;
 };
-
 /*
  * struct vdec_fb_entry - decoder frame buffer information for free/disp list
  * @vdec_fb_va  : virtual address of struct vdec_fb
@@ -370,6 +373,7 @@ struct vdec_ipi_fb {
 struct vdec_fb_entry {
 	__u64 vdec_fb_va;
 	__u64 timestamp;
+	__s32 general_size;
 	__u32 reserved;
 };
 

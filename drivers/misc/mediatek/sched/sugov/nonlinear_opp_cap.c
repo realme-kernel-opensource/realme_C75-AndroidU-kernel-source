@@ -6,18 +6,29 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/cpumask.h>
-#include <linux/of.h>
 #include <linux/percpu.h>
 #include <sched/sched.h>
 #include "cpufreq.h"
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+#include "sugov_trace.h"
+#endif
 #include "mtk_unified_power.h"
+#include "common.h"
 
 #if IS_ENABLED(CONFIG_MTK_OPP_CAP_INFO)
 static void __iomem *sram_base_addr;
 static struct pd_capacity_info *pd_capacity_tbl;
 static int pd_count;
 static int entry_count;
-static bool has_eas_info_node;
+static struct eas_info eas_node;
+static bool initialized;
+
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+unsigned int get_nr_caps(int cluster_id){
+	return pd_capacity_tbl[cluster_id].nr_caps;
+}
+EXPORT_SYMBOL_GPL(get_nr_caps);
+#endif
 
 unsigned long pd_get_opp_capacity(int cpu, int opp)
 {
@@ -41,6 +52,33 @@ unsigned long pd_get_opp_capacity(int cpu, int opp)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(pd_get_opp_capacity);
+
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+unsigned int cpufreq_get_cpu_freq(int cpu, int idx)
+{
+#ifndef CONFIG_NONLINEAR_FREQ_CTL
+	return 0;
+#else
+	struct em_perf_domain *pd;
+	int opp;
+	int first_freq, last_freq;
+	pd = em_cpu_get(cpu);
+	if(!pd){
+		pr_err("pd is null\n");
+		return 0;
+	}
+	first_freq = pd->table[0].frequency;
+	last_freq = pd->table[pd->nr_perf_states - 1].frequency;
+
+	if (first_freq > last_freq)
+		opp = idx;
+	else
+		opp = pd->nr_perf_states - idx - 1;
+	return (int)pd->table[opp].frequency;
+#endif
+}
+EXPORT_SYMBOL(cpufreq_get_cpu_freq);
+#endif
 
 static void free_capacity_table(void)
 {
@@ -77,7 +115,7 @@ static int init_capacity_table(void)
 		pd = em_cpu_get(cpu);
 		if (!pd)
 			goto err;
-		if (!has_eas_info_node) {
+		if (!eas_node.available) {
 #if IS_ENABLED(CONFIG_MTK_UNIFIED_POWER)
 			tbl = upower_get_core_tbl(cpu);
 #endif
@@ -85,7 +123,7 @@ static int init_capacity_table(void)
 				goto err;
 		}
 		for (j = 0; j < pd_info->nr_caps; j++) {
-			if (has_eas_info_node) {
+			if (eas_node.available) {
 				cap = ioread16(base + offset);
 				next_cap = ioread16(base + offset + CAPACITY_ENTRY_SIZE);
 			} else {
@@ -124,22 +162,27 @@ static int init_capacity_table(void)
 			}
 
 			count += 1;
-			offset += CAPACITY_ENTRY_SIZE;
+			if (eas_node.available)
+				offset += CAPACITY_ENTRY_SIZE;
 		}
 
 		/* repeated last cap 0 between each cluster */
-		if (has_eas_info_node) {
+		if (eas_node.available) {
 			end_cap = ioread16(base + offset);
 			if (end_cap != cap)
 				goto err;
+			offset += CAPACITY_ENTRY_SIZE;
 		}
 		offset += CAPACITY_ENTRY_SIZE;
 
 		for_each_cpu(j, &pd_info->cpus) {
 			if (per_cpu(cpu_scale, j) != pd_info->caps[0]) {
-				pr_info("per_cpu(cpu_scale, %d)=%d, pd_info->caps[0]=%d\n",
+				pr_info("capacity err: cpu=%d, cpu_scale=%d, pd_info_cap=%d\n",
 					j, per_cpu(cpu_scale, j), pd_info->caps[0]);
 				per_cpu(cpu_scale, j) = pd_info->caps[0];
+			} else {
+				pr_info("capacity match: cpu=%d, cpu_scale=%d, pd_info_cap=%d\n",
+					j, per_cpu(cpu_scale, j), pd_info->caps[0]);
 			}
 		}
 	}
@@ -212,7 +255,7 @@ nomem:
 
 static int init_sram_mapping(void)
 {
-	sram_base_addr = ioremap(DVFS_TBL_BASE_PHYS + CAPACITY_TBL_OFFSET, CAPACITY_TBL_SIZE);
+	sram_base_addr = ioremap(eas_node.csram_base + eas_node.offs_cap, CAPACITY_TBL_SIZE);
 
 	if (!sram_base_addr) {
 		pr_info("Remap capacity table failed!\n");
@@ -234,10 +277,11 @@ static int pd_capacity_tbl_show(struct seq_file *m, void *v)
 			break;
 
 		seq_printf(m, "Pd table: %d\n", i);
-		seq_printf(m, "nr_caps: %d\n", pd_info->nr_caps);
 		seq_printf(m, "cpus: %*pbl\n", cpumask_pr_args(&pd_info->cpus));
+		seq_printf(m, "nr_caps: %d\n", pd_info->nr_caps);
 		for (j = 0; j < pd_info->nr_caps; j++)
-			seq_printf(m, "%d: %lu\n", j, pd_info->caps[j]);
+			seq_printf(m, "%d: %lu, %lu\n", j, pd_info->caps[j],
+					pd_info->util_freq[pd_info->caps[j]]);
 	}
 
 	return 0;
@@ -257,18 +301,10 @@ int init_opp_cap_info(struct proc_dir_entry *dir)
 {
 	int ret;
 	struct proc_dir_entry *entry;
-	struct device_node *dn = NULL;
 
-	dn = of_find_node_by_name(NULL, "eas_info");
-	if (dn) {
-		pr_info("Get info from sram!\n");
-		has_eas_info_node = true;
-	} else {
-		pr_info("Get info from API!\n");
-		has_eas_info_node = false;
-	}
+	parse_eas_data(&eas_node);
 
-	if (has_eas_info_node) {
+	if (eas_node.available) {
 		ret = init_sram_mapping();
 		if (ret)
 			return ret;
@@ -281,7 +317,7 @@ int init_opp_cap_info(struct proc_dir_entry *dir)
 	ret = init_capacity_table();
 	if (ret)
 		return ret;
-
+	initialized = true;
 	entry = proc_create("pd_capacity_tbl", 0644, dir, &pd_capacity_tbl_ops);
 	if (!entry)
 		pr_info("mtk_scheduler/pd_capacity_tbl entry create failed\n");
@@ -302,6 +338,9 @@ void mtk_arch_set_freq_scale(void *data, const struct cpumask *cpus,
 	int opp;
 	unsigned long cap, max_cap;
 	struct cpufreq_policy *policy;
+
+	if (unlikely(!initialized))
+		return;
 
 	policy = cpufreq_cpu_get(cpu);
 	if (!policy)
@@ -344,15 +383,51 @@ unsigned int get_sched_capacity_margin_dvfs(void)
 }
 EXPORT_SYMBOL_GPL(get_sched_capacity_margin_dvfs);
 
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+#define DEFAULT_CAP_MARGIN_DVFS 1280 /* ~20% margin */
+unsigned int capacity_margin_dvfs = DEFAULT_CAP_MARGIN_DVFS;
+bool capacity_margin_dvfs_changed = false;
+
+void set_capacity_margin_dvfs_changed(bool changed)
+{
+	capacity_margin_dvfs_changed = changed;
+}
+EXPORT_SYMBOL(set_capacity_margin_dvfs_changed);
+
+#endif
+
 void mtk_map_util_freq(void *data, unsigned long util, unsigned long freq,
 				struct cpumask *cpumask, unsigned long *next_freq)
 {
 	int i, j, cap;
 	struct pd_capacity_info *info;
 	unsigned long temp_util;
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+	unsigned long target_util;
+	struct sugov_policy *sg_policy = (struct sugov_policy *)data;
+#endif
+
+	if (unlikely(!initialized))
+		return;
 
 	temp_util = util;
+
+#ifdef CONFIG_SCHEDUTIL_USE_TL
+	if (sg_policy) {
+		if (!capacity_margin_dvfs_changed) {
+			target_util = choose_util(sg_policy, util);
+			if (target_util >= 0)
+				util = target_util;
+			trace_sugov_next_util_tl(sg_policy->policy->cpu, util, arch_scale_cpu_capacity(sg_policy->policy->cpu), target_util);
+		} else {
+			util = (util * util_scale) >> SCHED_CAPACITY_SHIFT;
+		}
+	} else {
+		util = (util * util_scale) >> SCHED_CAPACITY_SHIFT;
+	}
+#else
 	util = (util * util_scale) >> SCHED_CAPACITY_SHIFT;
+#endif
 
 	for (i = 0; i < pd_count; i++) {
 		info = &pd_capacity_tbl[i];

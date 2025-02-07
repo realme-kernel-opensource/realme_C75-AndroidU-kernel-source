@@ -346,11 +346,18 @@ static long user_ioctl(struct file *file, unsigned int id, unsigned long arg)
 			break;
 		}
 
+        if (command.command_id == 0xF9147E18) {
+            boost_tee();
+        }
+
 		ret = client_gp_invoke_command(client, command.session_id,
 					       command.command_id,
 					       &command.operation,
 					       &command.ret);
 
+		if (command.command_id == 0xF9147E18) {
+            deboost_tee();
+        }
 		if (copy_to_user(uarg, &command, sizeof(command))) {
 			ret = -EFAULT;
 			break;

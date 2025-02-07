@@ -2240,6 +2240,7 @@ static long RSC_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					"RSC Enque Num is bigger than enqueNum:%d\n",
 						rsc_RscReq.m_ReqNum);
 					Ret = -EFAULT;
+					mutex_unlock(&gRscMutex);
 					goto EXIT;
 				}
 				if (copy_from_user
@@ -2250,6 +2251,7 @@ static long RSC_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					LOG_ERR(
 					"copy RSCConfig from request fail!!\n");
 					Ret = -EFAULT;
+					mutex_unlock(&gRscMutex);
 					goto EXIT;
 				}
 
@@ -2783,6 +2785,7 @@ static signed int RSC_open(struct inode *pInode, struct file *pFile)
 
 	/* Enable clock */
 	RSC_EnableClock(MTRUE);
+	cmdq_mbox_enable(cmdq_clt->chan);
 	g_SuspendCnt = 0;
 	LOG_INF("RSC open g_u4EnableClockCount: %d", g_u4EnableClockCount);
 
@@ -2848,7 +2851,7 @@ static signed int RSC_release(struct inode *pInode, struct file *pFile)
 	LOG_INF("Curr UsrCnt(%d), (process, pid, tgid)=(%s, %d, %d), last user",
 		RSCInfo.UserCount, current->comm, current->pid, current->tgid);
 
-
+	cmdq_mbox_disable(cmdq_clt->chan);
 	/* Disable clock. */
 	RSC_EnableClock(MFALSE);
 	LOG_DBG("RSC release g_u4EnableClockCount: %d", g_u4EnableClockCount);

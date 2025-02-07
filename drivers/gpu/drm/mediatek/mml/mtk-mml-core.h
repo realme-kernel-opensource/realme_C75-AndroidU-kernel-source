@@ -61,6 +61,7 @@ do { \
 		pr_notice("[mml]" fmt "\n", ##args); \
 } while (0)
 
+#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
 /* mml ftrace */
 extern int mml_trace;
 
@@ -92,6 +93,17 @@ extern int mml_trace;
 	if (mml_trace) \
 		mml_trace_end(); \
 } while (0)
+#else
+
+#define mml_trace_begin_tid(...)
+#define mml_trace_begin(...)
+#define mml_trace_end()
+#define mml_trace_tag_start(tag)
+#define mml_trace_tag_end(tag)
+#define mml_trace_ex_begin(...)
+#define mml_trace_ex_end()
+
+#endif
 
 /* mml pq control */
 extern int mml_pq_disable;
@@ -321,6 +333,7 @@ struct mml_frame_config {
 	bool shadow:1;
 	bool framemode:1;
 	bool nocmd:1;
+	bool err:1;
 
 	/* tile */
 	struct mml_tile_output *tile_output[MML_PIPE_CNT];
@@ -424,6 +437,8 @@ struct mml_task {
 
 	/* mml pq task */
 	struct mml_pq_task *pq_task;
+
+	bool err;
 };
 
 struct tile_func_block;

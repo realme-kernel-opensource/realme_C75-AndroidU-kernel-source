@@ -129,7 +129,7 @@ static void lcm_panel_get_data(struct lcm *ctx)
 }
 #endif
 
-#if defined(CONFIG_RT5081_PMU_DSV) || defined(CONFIG_MT6370_PMU_DSV)
+#if IS_ENABLED(CONFIG_RT5081_PMU_DSV) || IS_ENABLED(CONFIG_REGULATOR_MT6370)
 static struct regulator *disp_bias_pos;
 static struct regulator *disp_bias_neg;
 
@@ -397,9 +397,7 @@ static int lcm_unprepare(struct drm_panel *panel)
 
 	ctx->error = 0;
 	ctx->prepared = false;
-#if defined(CONFIG_RT5081_PMU_DSV) || defined(CONFIG_MT6370_PMU_DSV)
-	lcm_panel_bias_disable();
-#else
+
 	ctx->reset_gpio =
 		devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(ctx->reset_gpio)) {
@@ -410,6 +408,9 @@ static int lcm_unprepare(struct drm_panel *panel)
 	gpiod_set_value(ctx->reset_gpio, 0);
 	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
 
+#if IS_ENABLED(CONFIG_RT5081_PMU_DSV) || IS_ENABLED(CONFIG_REGULATOR_MT6370)
+	lcm_panel_bias_disable();
+#else
 	if (ctx->gate_ic == 0) {
 		ctx->bias_neg = devm_gpiod_get_index(ctx->dev,
 			"bias", 1, GPIOD_OUT_HIGH);
@@ -447,7 +448,7 @@ static int lcm_prepare(struct drm_panel *panel)
 	if (ctx->prepared)
 		return 0;
 
-#if defined(CONFIG_RT5081_PMU_DSV) || defined(CONFIG_MT6370_PMU_DSV)
+#if IS_ENABLED(CONFIG_RT5081_PMU_DSV) || IS_ENABLED(CONFIG_REGULATOR_MT6370)
 	lcm_panel_bias_enable();
 #else
 	if (ctx->gate_ic == 0) {
@@ -539,6 +540,9 @@ static void change_drm_disp_mode_params(struct drm_display_mode *mode)
 		mode->hsync_end = fake_width + HFP + HSA;
 		mode->htotal = fake_width + HFP + HSA + HBP;
 	}
+	//calculate clock, ref drm_mode_vrefresh function
+	if (fake_heigh == 1440 && fake_width == 720)
+		mode->clock = 69678;
 }
 
 #if defined(CONFIG_MTK_PANEL_EXT)
@@ -766,6 +770,10 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	}
 	devm_gpiod_put(dev, ctx->reset_gpio);
 
+#ifndef CONFIG_RT4831A_I2C
+#if IS_ENABLED(CONFIG_RT5081_PMU_DSV) || IS_ENABLED(CONFIG_REGULATOR_MT6370)
+	lcm_panel_bias_enable();
+#else
 	if (ctx->gate_ic == 0) {
 		ctx->bias_pos = devm_gpiod_get_index(dev, "bias", 0, GPIOD_OUT_HIGH);
 		if (IS_ERR(ctx->bias_pos)) {
@@ -783,7 +791,8 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		}
 		devm_gpiod_put(dev, ctx->bias_neg);
 	}
-
+#endif
+#endif
 	ctx->prepared = true;
 	ctx->enabled = true;
 

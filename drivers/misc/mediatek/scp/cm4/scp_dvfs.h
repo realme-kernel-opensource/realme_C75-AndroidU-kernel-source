@@ -149,8 +149,8 @@ struct dvfs_data {
 	struct dvfs_opp *opp;
 	int scp_opp_num;
 	int dvfsrc_opp_num;
-	bool platform_mt6768;
-	bool platform_mt6781;
+	bool legacy_support_v1;
+	bool legacy_support_v2;
 };
 
 extern int scp_pll_ctrl_set(unsigned int pll_ctrl_flag, unsigned int pll_sel);
@@ -162,6 +162,7 @@ extern void scp_pll_mux_set(unsigned int pll_ctrl_flag);
 extern void wait_scp_dvfs_init_done(void);
 extern int __init scp_dvfs_init(void);
 extern void __exit scp_dvfs_exit(void);
+extern void spm_set_scp_ipi_id_cb(void (*scp_callback)(void));
 
 /* scp dvfs variable*/
 extern unsigned int scp_expected_freq;

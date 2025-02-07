@@ -49,6 +49,7 @@ struct mtk_vcu_mem {
 	struct dma_buf *dbuf;
 	dma_addr_t iova;
 	atomic_t ref_cnt;
+	uint64_t va_id;
 	struct dma_buf_attachment *attach;
 	struct sg_table *sgt;
 };

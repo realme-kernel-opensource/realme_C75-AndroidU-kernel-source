@@ -46,6 +46,7 @@ obj-$(CONFIG_MTK_SSC_MODULE) += ssc/
 obj-$(CONFIG_MTK_SWPM_MODULE) += swpm/
 obj-$(CONFIG_MTK_PMSR) += pmsr/
 obj-$(CONFIG_MTK_IMGSENSOR) += imgsensor/src/
+obj-$(CONFIG_MTK_IMGSENSOR_ISP4) += imgsensor/src/
 obj-$(CONFIG_MTK_V4L2_IMGSENSOR) += imgsensor/src-v4l2/
 obj-$(CONFIG_MTK_IOMMU_MISC) += iommu/
 obj-$(CONFIG_MTK_COMBO) += connectivity/
@@ -61,9 +62,11 @@ obj-$(CONFIG_MTK_POWER_THROTTLING_COMMON) += power_throttling/
 obj-$(CONFIG_MTK_PMIC_PROTECT) += pmic_protect/
 obj-$(CONFIG_MTK_MDPM) += mdpm/
 obj-$(CONFIG_MTK_MDPM_LEGACY) += mdpm_v1/
+obj-$(CONFIG_MTK_MDPM_LEGACY_V1) += mdpm_v1/
 obj-$(CONFIG_MTK_PWM)	    += pwm/
 obj-$(CONFIG_MTK_IRTX_PWM_SUPPORT) += irtx/
 obj-$(CONFIG_MTK_PBM) += pbm/
+obj-$(CONFIG_MTK_PBM_LEGACY) += pbm_v1/
 obj-$(CONFIG_MTK_CCU) += ccu/src/
 obj-$(CONFIG_MEDIATEK_CPUFREQ_DEBUG) += cpufreq_v1/
 obj-$(CONFIG_MEDIATEK_CPU_DVFS) += cpufreq_v2/
@@ -113,9 +116,20 @@ obj-$(CONFIG_MTK_CPUQOS_V3) += cache-auditor/
 obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 obj-$(CONFIG_MTK_WIDEVINE_DRM) += widevine_drm/
 obj-$(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON) += mmqos/
+#ifdef OPLUS_BUG_STABILITY
+obj-$(CONFIG_MTK_BOOT_COMMON) += boot_common/
+#endif
 obj-$(CONFIG_MTK_TIMER_ACCURACY_TEST) += timer/
+obj-$(CONFIG_MTK_CAMERA_LDO) += wl2868c/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#Add for DFX camera log report
+obj-$(CONFIG_MTK_V4L2_IMGSENSOR) += imgsensor/oplus/
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 obj-$(CONFIG_MTK_PPM_V3) += ppm_v3/
 obj-$(CONFIG_MTK_SPM) += spm/
 obj-$(CONFIG_MTK_SPM_V0) += spm/
+obj-$(CONFIG_MTK_POWER_GS_LEGACY) += power_gs_v1/
+obj-$(CONFIG_MTK_POWER_GS_LEGACY_V2) += power_gs_v1/
 obj-$(CONFIG_MTK_VIDEOCODEC_DRIVER) += videocodec/
 obj-$(CONFIG_MTK_LEGACY_THERMAL) += thermal/
+obj-$(CONFIG_MTK_MT6382_BDG) += spi_slave_drv/

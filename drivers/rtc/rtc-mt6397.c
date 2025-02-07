@@ -1052,6 +1052,8 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -EINVAL;
 	rtc->addr_base = res->start;
 
 	rtc->data = of_device_get_match_data(&pdev->dev);
@@ -1173,7 +1175,7 @@ static const struct mtk_rtc_data mt6358_rtc_data = {
 };
 
 static const struct mtk_rtc_data mt6357_rtc_data = {
-	.wrtgr = RTC_WRTGR_MT6358,
+	.wrtgr = RTC_WRTGR_MT6357,
 	.spare_reg_fields = mtk_rtc_spare_reg_fields,
 #ifdef SUPPORT_EOSC_CALI
 	.cali_reg_fields	= mt6357_cali_reg_fields,
@@ -1189,6 +1191,7 @@ static const struct mtk_rtc_data mt6397_rtc_data = {
 static const struct mtk_rtc_data mt6359p_rtc_data = {
 	.wrtgr			= RTC_WRTGR_MT6358,
 	.alarm_sta_clr_bit	= RTC_BBPU_RESET_AL,
+	.wrtgr = RTC_WRTGR_MT6359P,
 	.spare_reg_fields	= mtk_rtc_spare_reg_fields,
 #ifdef SUPPORT_EOSC_CALI
 	.cali_reg_fields	= mt6359_cali_reg_fields,

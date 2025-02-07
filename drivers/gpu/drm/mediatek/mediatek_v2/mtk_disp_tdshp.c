@@ -16,6 +16,9 @@ static DEFINE_SPINLOCK(g_tdshp_clock_lock);
 // It's a work around for no comp assigned in functions.
 static struct mtk_ddp_comp *default_comp;
 static struct mtk_ddp_comp *tdshp1_default_comp;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_tdshp_probe_ready;
+#endif
 
 #define index_of_tdshp(module) ((module == DDP_COMPONENT_TDSHP0) ? 0 : 1)
 #define DISP_TDSHP_HW_ENGINE_NUM (2)
@@ -52,7 +55,7 @@ static int mtk_disp_tdshp_write_reg(struct mtk_ddp_comp *comp,
 	struct DISP_TDSHP_REG *disp_tdshp_regs;
 
 	int ret = 0;
-	int id = 0;
+	int id = index_of_tdshp(comp->id);
 
 	if (lock)
 		mutex_lock(&g_tdshp_global_lock);
@@ -64,7 +67,7 @@ static int mtk_disp_tdshp_write_reg(struct mtk_ddp_comp *comp,
 		goto thshp_write_reg_unlock;
 	}
 
-	pr_notice("tdshp_en: %x, tdshp_limit: %x, tdshp_ylev_256: %x",
+	DDPINFO("tdshp_en: %x, tdshp_limit: %x, tdshp_ylev_256: %x",
 			disp_tdshp_regs->tdshp_en, disp_tdshp_regs->tdshp_limit,
 			disp_tdshp_regs->tdshp_ylev_256);
 
@@ -384,15 +387,16 @@ int mtk_drm_ioctl_tdshp_get_size(struct drm_device *dev, void *data,
 
 	crtc = list_first_entry(&(dev)->mode_config.crtc_list,
 		typeof(*crtc), head);
+
 	if (IS_ERR_OR_NULL(crtc)) {
-		DDPPR_ERR("find crtc fail\n");
-		return -EINVAL;
+	        DDPPR_ERR("find crtc fail\n");
+	        return -EINVAL;
 	}
 
 	priv = dev->dev_private;
 	if (IS_ERR_OR_NULL(priv)) {
-		DDPPR_ERR("%s, invalid priv\n", __func__);
-		return -EINVAL;
+	        DDPPR_ERR("%s, invalid priv\n", __func__);
+	        return -EINVAL;
 	}
 
 	mutex_lock(&priv->commit.lock);
@@ -718,6 +722,9 @@ static int mtk_disp_tdshp_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to add component: %d\n", ret);
 		mtk_ddp_comp_pm_disable(&priv->ddp_comp);
 	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_tdshp_probe_ready = true;
+#endif
 	pr_notice("%s-\n", __func__);
 
 	return ret;

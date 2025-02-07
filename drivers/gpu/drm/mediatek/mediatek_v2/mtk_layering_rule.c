@@ -16,7 +16,7 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 /*
-#if defined(CONFIG_MTK_DRAMC)
+#if IS_ENABLED(CONFIG_MTK_DRAMC)
 #include "mtk_dramc.h"
 #endif
 */
@@ -184,10 +184,11 @@ static void filter_by_yuv_layers(struct drm_mtk_layering_info *disp_info)
 
 static void filter_2nd_display(struct drm_mtk_layering_info *disp_info)
 {
-	unsigned int i, j, layer_cnt = 0;
+	unsigned int i = 0, j = 0;
 
 	for (i = HRT_SECONDARY; i < HRT_DISP_TYPE_NUM; i++) {
 		unsigned int max_layer_cnt = SECONDARY_OVL_LAYER_NUM;
+		unsigned int layer_cnt = 0;
 
 		if (is_triple_disp(disp_info) && i == HRT_SECONDARY)
 			max_layer_cnt = 1;
@@ -196,7 +197,11 @@ static void filter_2nd_display(struct drm_mtk_layering_info *disp_info)
 				continue;
 
 			layer_cnt++;
-			if (layer_cnt > max_layer_cnt)
+			if (disp_info->layer_num[i] <= SECONDARY_OVL_LAYER_NUM &&
+					layer_cnt > max_layer_cnt)
+				mtk_rollback_layer_to_GPU(disp_info, i, j);
+			else if (disp_info->layer_num[i] > SECONDARY_OVL_LAYER_NUM &&
+					layer_cnt >= max_layer_cnt)
 				mtk_rollback_layer_to_GPU(disp_info, i, j);
 		}
 	}
@@ -407,24 +412,27 @@ static uint16_t get_mapping_table(struct drm_device *dev, int disp_idx,
 	switch (tb_type) {
 	case DISP_HW_OVL_TB:
 		map = ovl_mapping_table[addon_data->hrt_type];
-		if (mtk_drm_helper_get_opt(priv->helper_opt,
+		if (priv->secure_static_path_switch == true ||
+			(mtk_drm_helper_get_opt(priv->helper_opt,
 			MTK_DRM_OPT_VDS_PATH_SWITCH) &&
-			priv->need_vds_path_switch)
+			priv->need_vds_path_switch))
 			map = ovl_mapping_tb_vds_switch[addon_data->hrt_type];
 		break;
 	case DISP_HW_LARB_TB:
 		map = larb_mapping_table[addon_data->hrt_type];
-		if (mtk_drm_helper_get_opt(priv->helper_opt,
+		if (priv->secure_static_path_switch == true ||
+			(mtk_drm_helper_get_opt(priv->helper_opt,
 			MTK_DRM_OPT_VDS_PATH_SWITCH) &&
-			priv->need_vds_path_switch)
+			priv->need_vds_path_switch))
 			map = larb_mapping_tb_vds_switch[addon_data->hrt_type];
 		break;
 	case DISP_HW_LAYER_TB:
 		if (param <= MAX_PHY_OVL_CNT && param >= 0) {
 			tmp_map = layer_mapping_table[addon_data->hrt_type];
-			if (mtk_drm_helper_get_opt(priv->helper_opt,
+			if (priv->secure_static_path_switch == true ||
+				(mtk_drm_helper_get_opt(priv->helper_opt,
 				MTK_DRM_OPT_VDS_PATH_SWITCH) &&
-				priv->need_vds_path_switch)
+				priv->need_vds_path_switch))
 				tmp_map = layer_mapping_table_vds_switch[
 					addon_data->hrt_type];
 
@@ -489,6 +497,27 @@ static bool _rollback_all_to_GPU_for_idle(struct drm_device *dev)
 	return true;
 }
 
+static bool _rollback_to_new_hrt_for_paper_mode(struct drm_device *dev, unsigned int hrt_idx)
+{
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc = NULL;
+
+	drm_for_each_crtc(crtc, dev) {
+		if (drm_crtc_index(crtc) == 0) {
+			mtk_crtc = to_mtk_crtc(crtc);
+			break;
+		}
+	}
+
+	if (mtk_crtc && mtk_crtc->paper_mode == paper_enabling) {
+		mtk_crtc->papering_hrt_idx = hrt_idx;
+		mtk_crtc->paper_mode = paper_renew_hrt;
+		DDPINFO("hrt idx for paper mode is:%d\n", hrt_idx);
+	}
+
+	return true;
+}
+
 unsigned long long _layering_get_frame_bw(struct drm_crtc *crtc,
 						struct drm_display_mode *mode)
 {
@@ -545,13 +574,23 @@ static int layering_get_valid_hrt(struct drm_crtc *crtc, int mode_idx)
 	dvfs_bw *= 10000;
 
 	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+	DDPDBG("%s mode_idx:%d->%d\n", __func__, mtk_crtc->mode_idx, mode_idx);
 	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
-	DDPDBG("%s mode_idx:%d\n", __func__, mode_idx);
-	mtk_crtc->mode_idx = mode_idx;
-	tmp = mode_idx;
-	if (output_comp)
-		mtk_ddp_comp_io_cmd(output_comp, NULL,
-			GET_FRAME_HRT_BW_BY_MODE, &tmp);
+
+	if (!mtk_crtc->res_switch) {
+		DDPDBG("%s mode_idx:%d\n", __func__, mode_idx);
+		mtk_crtc->mode_idx = mode_idx;
+		if (output_comp)
+			mtk_ddp_comp_io_cmd(output_comp, NULL,
+				GET_FRAME_HRT_BW_BY_DATARATE, &tmp);
+	} else {
+		DDPDBG("%s mode_idx:%d\n", __func__, mode_idx);
+		mtk_crtc->mode_idx = mode_idx;
+		tmp = mode_idx;
+		if (output_comp)
+			mtk_ddp_comp_io_cmd(output_comp, NULL,
+				GET_FRAME_HRT_BW_BY_MODE, &tmp);
+	}
 	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 
 	if (!tmp) {
@@ -890,6 +929,7 @@ static struct layering_rule_ops l_rule_ops = {
 	.get_mapping_table = get_mapping_table,
 	.rollback_to_gpu_by_hw_limitation = filter_by_hw_limitation,
 	.rollback_all_to_GPU_for_idle = _rollback_all_to_GPU_for_idle,
+	.rollback_to_new_hrt_for_paper_mode = _rollback_to_new_hrt_for_paper_mode,
 	.fbdc_pre_calculate = fbdc_pre_calculate,
 	.fbdc_adjust_layout = fbdc_adjust_layout,
 	.fbdc_restore_layout = fbdc_restore_layout,

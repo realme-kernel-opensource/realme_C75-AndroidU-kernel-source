@@ -12,5 +12,16 @@
 #
 
 
-obj-y += isp_6s/
-obj-y += isp_4/
+ifeq ($(CONFIG_MTK_CAMERA_ISP_RAW_SUPPORT), m)
+obj-$(CONFIG_MTK_CAMERA_ISP_RAW_SUPPORT) += isp_6s/
+obj-$(CONFIG_MTK_CAMERA_ISP_RAW_SUPPORT) += isp_4/
+else ifeq ($(CONFIG_MTK_CAMERA_ISP_RAW_SUPPORT), y)
+# No isp6s driver is built-in.
+obj-$(CONFIG_MTK_CAMERA_ISP_RAW_SUPPORT) += isp_4/
+endif
+
+ifeq ($(strip $(CONFIG_MTK_ISP_IRQ_CONTROLLER)), y)
+$(warning "CONFIG_MTK_ISP_IRQ_CONTROLLER")
+$(warning $(CONFIG_MTK_ISP_IRQ_CONTROLLER))
+LOCAL_CFLAGS += -DISP_IRQ_CONTROLLER
+endif

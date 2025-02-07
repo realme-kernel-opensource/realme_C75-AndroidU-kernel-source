@@ -80,7 +80,7 @@ static int polling_factor2 = 10000;
 #define mtktspa_dprintk(fmt, args...) \
 do {                                    \
 	if (mtktspa_debug_log) {                \
-		pr_info("[Thermal/TZ/PA]" fmt, ##args); \
+		pr_notice("[Thermal/TZ/PA]" fmt, ##args); \
 	}                                   \
 } while (0)
 
@@ -141,8 +141,8 @@ static void pa_cal_stats(struct timer_list *t)
 
 		if (tx_bytes > stats_info->pre_tx_bytes) {
 
-			tx_throughput = ((tx_bytes - stats_info->pre_tx_bytes)
-					/ (cur_time.tv_sec - pre_time)) >> 7;
+			tx_throughput = div_u64((tx_bytes - stats_info->pre_tx_bytes),
+					(cur_time.tv_sec - pre_time)) >> 7;
 
 			mtktspa_dprintk(
 				"[%s] cur_time=%lu, cur_data=%lu, tx_throughput=%luKb/s\n",
@@ -152,8 +152,8 @@ static void pa_cal_stats(struct timer_list *t)
 			stats_info->pre_tx_bytes = tx_bytes;
 		} else if (tx_bytes < stats_info->pre_tx_bytes) {
 			/* Overflow */
-			tx_throughput = ((0xffffffff - stats_info->pre_tx_bytes
-					+ tx_bytes) /
+			tx_throughput = div_u64((0xffffffff - stats_info->pre_tx_bytes
+					+ tx_bytes),
 					(cur_time.tv_sec - pre_time)) >> 7;
 
 			stats_info->pre_tx_bytes = tx_bytes;
@@ -338,12 +338,12 @@ struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 	} else
 		return 0;
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtktspa_dprintk(
-	//		"[%s] error unbinding cooling dev\n", __func__);
-//
-	//	return -EINVAL;
-//	}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtktspa_dprintk(
+			"[%s] error unbinding cooling dev\n", __func__);
+
+		return -EINVAL;
+	}
 
 	mtktspa_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;

@@ -395,13 +395,11 @@ static int port_net_init(struct port_t *port)
 	return 0;
 }
 
-#ifdef CCCI_KMODULE_ENABLE
 int mbim_start_xmit(struct sk_buff *skb, int ifid)
 {
 	pr_debug("[ccci/dummy] %s is not supported!\n", __func__);
 	return 0;
 }
-#endif
 
 static void recv_from_port_list(struct port_t *port)
 {
@@ -556,7 +554,7 @@ static void port_net_queue_state_notify(struct port_t *port, int dir,
 			return;
 		}
 	}
-	if (state == TX_FULL) {
+	if ((port_md_gen > 6293) && (state == TX_FULL)) {
 		if (ccci_dpmaif_empty_query(qno) > 0) {
 			if (dir == OUT)
 				spin_unlock_irqrestore(&port->flag_lock, flags);

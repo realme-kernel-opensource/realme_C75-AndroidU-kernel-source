@@ -16,6 +16,13 @@
 #include "mt6768-afe-gpio.h"
 #include "../../codecs/mt6358.h"
 #include "../common/mtk-sp-spk-amp.h"
+#if IS_ENABLED(CONFIG_SIA_PA_ALGO)
+#include "../../codecs/audio/sia81xx/sipa_aux_dev_if.h"
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+#include "../../codecs/audio/oplus_speaker_manager/oplus_speaker_manager_platform.h"
+#include "../../codecs/audio/oplus_speaker_manager/oplus_speaker_manager_codec.h"
+#endif /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 
 #if IS_ENABLED(CONFIG_SND_SOC_MT6358_ACCDET)
       #include "../../codecs/mt6358-accdet.h"
@@ -27,6 +34,9 @@
  * mt6768_mt6358_spk_amp_event()
  */
 #define EXT_SPK_AMP_W_NAME "Ext_Speaker_Amp"
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+#define EXT_RCV_AMP_W_NAME "Ext_Reciver_Amp"
+#endif
 
 static const char *const mt6768_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
 						  MTK_SPK_RICHTEK_RT5509_STR,
@@ -74,9 +84,128 @@ static int mt6768_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef OPLUS_FEATURE_SPEAKER_MUTE
+static int speaker_mute_control = 0;
+static int kspk_enable_spk_pa_state = 0;
+
+static const char *const spk_mute_function[] = { "Off", "On" };
+
+static const struct soc_enum spkmute_snd_enum[] = {
+    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(spk_mute_function), spk_mute_function),
+};
+
+static int speaker_mute_get_status(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = speaker_mute_control;
+	pr_err("%s(), speaker_mute_control = %d\n", __func__, speaker_mute_control);
+	return 0;
+}
+
+static int speaker_mute_put_status(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+
+	if(ucontrol->value.integer.value[0] == speaker_mute_control)
+		return 1;
+	speaker_mute_control = ucontrol->value.integer.value[0];
+
+	if(speaker_mute_control)
+	{
+#ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
+		oplus_ext_amp_l_enable(false);
+		oplus_ext_amp_r_enable(false);
+#else
+		if (OPLUS_PA_SIA == oplus_pa_type) {
+			sia81xx_stop();
+		}
+#endif // CONFIG_SND_SOC_OPLUS_PA_MANAGER
+	} else {
+#ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
+		oplus_ext_amp_l_enable(true);
+		oplus_ext_amp_r_enable(true);
+#else
+		if ((kspk_enable_spk_pa_state)&&(OPLUS_PA_SIA == oplus_pa_type)) {
+			sia81xx_start();
+		}
+#endif // CONFIG_SND_SOC_OPLUS_PA_MANAGER
+	}
+
+	pr_err("%s(), speaker_mute_control = %d\n", __func__, ucontrol->value.integer.value[0]);
+	return 0;
+}
+#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+static int rcv_amp_mode;
+static const char *rcv_amp_type_str[] = {"SPEAKER_MODE", "RECIEVER_MODE"};
+static const struct soc_enum rcv_amp_type_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(rcv_amp_type_str), rcv_amp_type_str);
+
+static int mt6768_rcv_amp_mode_get(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() = %d\n", __func__, rcv_amp_mode);
+	ucontrol->value.integer.value[0] = rcv_amp_mode;
+	return 0;
+}
+
+static int mt6768_rcv_amp_mode_set(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+
+	if (ucontrol->value.enumerated.item[0] >= e->items)
+		return -EINVAL;
+
+	rcv_amp_mode = ucontrol->value.integer.value[0];
+	pr_info("%s() = %d\n", __func__, rcv_amp_mode);
+	return 0;
+}
+
+static int mt6768_mt6358_rcv_amp_event(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *kcontrol,
+					int event)
+{
+	struct snd_soc_dapm_context *dapm = w->dapm;
+	struct snd_soc_card *card = dapm->card;
+
+	dev_info(card->dev, "%s(), event %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+#ifdef OPLUS_FEATURE_SPEAKER_MUTE
+		if (speaker_mute_control) {
+			dev_err(card->dev, "%s(), speaker force mute%d\n", __func__);
+			return 0;
+		}
+#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+		/* rcv amp on control */
+		if(rcv_amp_mode == 1)
+		{
+			oplus_ext_amp_recv_l_enable(true);
+		} else {
+			oplus_ext_amp_l_enable(true);
+		}
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		/* rcv amp off control */
+		if(rcv_amp_mode == 1)
+		{
+			oplus_ext_amp_recv_l_enable(false);
+		} else {
+			oplus_ext_amp_l_enable(false);
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+};
+#endif  /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
+
 static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
-				       struct snd_kcontrol *kcontrol,
-				       int event)
+					struct snd_kcontrol *kcontrol,
+					int event)
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_card *card = dapm->card;
@@ -86,9 +215,41 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
+#ifdef OPLUS_FEATURE_SPEAKER_MUTE
+		if(speaker_mute_control){
+			dev_err(card->dev, "%s(), speaker force mute\n", __func__);
+			return 0;
+		}
+		kspk_enable_spk_pa_state = 1;
+#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+		dev_info(card->dev, "%s(), SOC_OPLUS_PA_MANAGER oplus_ext_amp_r_enable(true)\n", __func__);
+		oplus_ext_amp_r_enable(true);
+#else
+#ifdef OPLUS_BUG_COMPATIBILITY
+		if (OPLUS_PA_SIA == oplus_pa_type) {
+			sia81xx_start();
+		}
+#endif  /*OPLUS_BUG_COMPATIBILITY*/
+#endif  /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
+#ifdef OPLUS_FEATURE_SPEAKER_MUTE
+		kspk_enable_spk_pa_state = 0;
+#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+		dev_info(card->dev, "%s(), SOC_OPLUS_PA_MANAGER oplus_ext_amp_r_enable(false)\n", __func__);
+		oplus_ext_amp_r_enable(false);
+#else
+#ifdef OPLUS_BUG_COMPATIBILITY
+		if (OPLUS_PA_SIA == oplus_pa_type) {
+			sia81xx_stop();
+		}
+#endif  /*OPLUS_BUG_COMPATIBILITY*/
+#endif  /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 		break;
 	default:
 		break;
@@ -96,13 +257,30 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 };
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for audiohal feedback */
+#define HAL_FEEDBACK_MAX_BYTES         (512)
+extern int hal_feedback_config_get(struct snd_kcontrol *kcontrol,
+			unsigned int __user *bytes,
+			unsigned int size);
+extern int hal_feedback_config_set(struct snd_kcontrol *kcontrol,
+			const unsigned int __user *bytes,
+			unsigned int size);
+#endif
 
 static const struct snd_soc_dapm_widget mt6768_mt6358_widgets[] = {
 	SND_SOC_DAPM_SPK(EXT_SPK_AMP_W_NAME, mt6768_mt6358_spk_amp_event),
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	SND_SOC_DAPM_SPK(EXT_RCV_AMP_W_NAME, mt6768_mt6358_rcv_amp_event),
+#endif
 };
 
 static const struct snd_soc_dapm_route mt6768_mt6358_routes[] = {
 	{EXT_SPK_AMP_W_NAME, NULL, "LINEOUT L"},
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	{EXT_RCV_AMP_W_NAME, NULL, "Receiver"},
+	{EXT_RCV_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
+#endif
 	{EXT_SPK_AMP_W_NAME, NULL, "LINEOUT L HSSPK"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
@@ -110,12 +288,26 @@ static const struct snd_soc_dapm_route mt6768_mt6358_routes[] = {
 
 static const struct snd_kcontrol_new mt6768_mt6358_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	SOC_DAPM_PIN_SWITCH(EXT_RCV_AMP_W_NAME),
+	SOC_ENUM_EXT("RCV_AMP_MODE", rcv_amp_type_enum,
+		     mt6768_rcv_amp_mode_get, mt6768_rcv_amp_mode_set),
+#endif
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6768_spk_type_enum[0],
 		     mt6768_spk_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_OUT_TYPE_GET", mt6768_spk_type_enum[1],
 		     mt6768_spk_i2s_out_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_IN_TYPE_GET", mt6768_spk_type_enum[1],
 		     mt6768_spk_i2s_in_type_get, NULL),
+	#ifdef OPLUS_FEATURE_SPEAKER_MUTE
+	SOC_ENUM_EXT("Speaker_Mute_Switch", spkmute_snd_enum[0], speaker_mute_get_status, speaker_mute_put_status),
+	#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
+	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	/* add for audiohal feedback */
+	SND_SOC_BYTES_TLV("HAL FEEDBACK",
+			  HAL_FEEDBACK_MAX_BYTES,
+			  hal_feedback_config_get, hal_feedback_config_set),
+	#endif
 };
 
 /*
@@ -287,6 +479,9 @@ static int mt6768_mt6358_init(struct snd_soc_pcm_runtime *rtd)
 
 	/* disable ext amp connection */
 	snd_soc_dapm_disable_pin(dapm, EXT_SPK_AMP_W_NAME);
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	snd_soc_dapm_disable_pin(dapm, EXT_RCV_AMP_W_NAME);
+#endif
 #if IS_ENABLED(CONFIG_SND_SOC_MT6358_ACCDET)
 	mt6358_accdet_init(codec_component, rtd->card);
 #endif
@@ -571,8 +766,8 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		SND_SOC_DAILINK_REG(playback2),
 	},
 	{
-		.name = "Playback_3",
-		.stream_name = "Playback_3",
+		.name = "Playback_5",
+		.stream_name = "Playback_5",
 		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
 			    SND_SOC_DPCM_TRIGGER_PRE},
 		.dynamic = 1,
@@ -953,7 +1148,15 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 	}
 
 	card->dev = &pdev->dev;
+#if IS_ENABLED(CONFIG_SIA_PA_ALGO)
 
+	ret = soc_aux_init_only_sia81xx(pdev, card);
+        dev_err(&pdev->dev, "%s soc_aux_init_only_sia8108 %d\n",
+            __func__, ret);
+	if (ret)
+		dev_err(&pdev->dev, "%s soc_aux_init_only_sia8108 fail %d\n",
+			__func__, ret);
+#endif
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
 		dev_err(&pdev->dev, "%s snd_soc_register_card fail %d\n",

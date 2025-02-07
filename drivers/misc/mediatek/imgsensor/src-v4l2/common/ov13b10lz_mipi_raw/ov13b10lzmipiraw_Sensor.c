@@ -55,8 +55,8 @@
 
 #define MULTI_WRITE 1
 #define _I2C_BUF_SIZE 4096
-static kal_uint16 _i2c_data[_I2C_BUF_SIZE];
-static unsigned int _size_to_write;
+
+
 static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = OV13B10LZ_SENSOR_ID,
 
@@ -152,7 +152,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.margin = 0x8,					/* sensor framelength & shutter margin */
 	.min_shutter = 0x4,				/* min shutter */
 	.min_gain = BASEGAIN, /*1x gain*/
-	.max_gain = 992, /*15.5x * 1024  gain*/
+	.max_gain = BASEGAIN*15.5, /*15.5x * 1024  gain*/
 	.min_gain_iso = 100,
 	.exp_step = 2,
 	.gain_step = 1, /*minimum step = 4 in 1x~2x gain*/
@@ -396,7 +396,7 @@ static kal_uint16 gain2reg(struct subdrv_ctx *ctx,const kal_uint16 gain)
 	return iReg;
 }
 
-static kal_uint16 set_gain(struct subdrv_ctx *ctx,kal_uint16 gain)
+static kal_uint16 set_gain(struct subdrv_ctx *ctx, kal_uint32 gain)
 {
 	kal_uint16 reg_gain;
 
@@ -1632,7 +1632,7 @@ static int open(struct subdrv_ctx *ctx)
 	//ctx->ihdr_en = 0;
 	ctx->test_pattern = 0;
 	ctx->current_fps = imgsensor_info.pre.max_framerate;
-	ctx->pdaf_mode = 0;
+	ctx->pdaf_mode = 1;
 
 
 	return ERROR_NONE;
@@ -1811,7 +1811,7 @@ static int get_info(struct subdrv_ctx *ctx, enum MSDK_SCENARIO_ID_ENUM scenario_
 	sensor_info->IHDR_LE_FirstLine = imgsensor_info.ihdr_le_firstline;
 	sensor_info->SensorModeNum = imgsensor_info.sensor_mode_num;
 	/*0: NO PDAF, 1: PDAF Raw Data mode, 2:PDAF VC mode*/
-	sensor_info->PDAF_Support = 0;  //fuzr change from 1 t 0
+	sensor_info->PDAF_Support = 1;
 
 	//sensor_info->HDR_Support = 0; /*0: NO HDR, 1: iHDR, 2:mvHDR, 3:zHDR*/
 	sensor_info->SensorMIPILaneNumber = imgsensor_info.mipi_lane_num;
@@ -1827,7 +1827,7 @@ static int get_info(struct subdrv_ctx *ctx, enum MSDK_SCENARIO_ID_ENUM scenario_
 	sensor_info->SensorWidthSampling = 0;
 	sensor_info->SensorHightSampling = 0;
 	sensor_info->SensorPacketECCOrder = 1;
-/*  no use confirm 
+/*  no use confirm
 	switch (scenario_id) {
 	case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		sensor_info->SensorGrabStartX = ctx->info.pre.startx;
@@ -2097,57 +2097,24 @@ static kal_uint32 get_default_framerate_by_scenario(struct subdrv_ctx *ctx,
 	return ERROR_NONE;
 }
 
-static kal_uint32 set_test_pattern_mode(struct subdrv_ctx *ctx, kal_uint32 modes)
+static kal_uint32 set_test_pattern_mode(struct subdrv_ctx *ctx, kal_uint32 mode)
 {
-	if (modes != ctx->test_pattern)
-		pr_debug("Test_Pattern modes: %d -> %d\n", ctx->test_pattern, modes);
-	memset(_i2c_data, 0x0, sizeof(_i2c_data));
-	_size_to_write = 0;
-	if (modes == 2) {
-		_i2c_data[_size_to_write++] = 0x5000;
-		_i2c_data[_size_to_write++] = 0x81;//10000001
-		_i2c_data[_size_to_write++] = 0x5001;
-		_i2c_data[_size_to_write++] = 0x00;
-		_i2c_data[_size_to_write++] = 0x5002;
-		_i2c_data[_size_to_write++] = 0x92;//10010010
-		/* need check with vendor */
-		_i2c_data[_size_to_write++] = 0x5081;
-		_i2c_data[_size_to_write++] = 0x01;
-	} else if (modes == 5) { //black
-		//@@ Solid color BLACK - on
-		//6c 3019 f0; d2
-		//6c 4308 01 ;
-		_i2c_data[_size_to_write++] = 0x3019;
-		_i2c_data[_size_to_write++] = 0xf0;
-		_i2c_data[_size_to_write++] = 0x4308;
-		_i2c_data[_size_to_write++] = 0x01;
+
+	if (mode != ctx->test_pattern)
+		pr_debug("mode %d -> %d\n", ctx->test_pattern, mode);
+	//1:Solid Color 2:Color bar 5:Black
+	if (mode == 5)
+		write_cmos_sensor(ctx, 0x5080, 0x80);
+	else if (mode)
+		write_cmos_sensor(ctx, 0x5080, 0x80);
+
+	if ((ctx->test_pattern) && (mode != ctx->test_pattern)) {
+		if (ctx->test_pattern == 5)
+			write_cmos_sensor(ctx, 0x5080, 0x81);
+		else if (mode == 0)
+			write_cmos_sensor(ctx, 0x5080, 0x00);
 	}
-	//check if it is off or changed
-	if ((modes != 2) && (ctx->test_pattern == 2)) {
-		_i2c_data[_size_to_write++] = 0x5000;
-		_i2c_data[_size_to_write++] = 0xCB;//11001011
-		_i2c_data[_size_to_write++] = 0x5001;
-		_i2c_data[_size_to_write++] = 0x43;//01000011
-		_i2c_data[_size_to_write++] = 0x5002;
-		_i2c_data[_size_to_write++] = 0x9E;//10011110
-		/* need check with vendor */
-		_i2c_data[_size_to_write++] = 0x5081;
-		_i2c_data[_size_to_write++] = 0x0;
-	} else if ((modes != 5) && (ctx->test_pattern == 5)) {
-		//@@ Solid color BLACK - off
-		//6c 3019 d2
-		//6c 4308 00
-		_i2c_data[_size_to_write++] = 0x3019;
-		_i2c_data[_size_to_write++] = 0xd2;
-		_i2c_data[_size_to_write++] = 0x4308;
-		_i2c_data[_size_to_write++] = 0x00;
-	}
-	if (_size_to_write > 0) {
-		ov13b10lz_table_write_cmos_sensor(ctx,
-			_i2c_data,
-			_size_to_write);
-	}
-	ctx->test_pattern = modes;
+	ctx->test_pattern = mode;
 	return ERROR_NONE;
 }
 
@@ -2206,6 +2173,19 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
 	cam_pr_debug("feature_id = %d\n", feature_id);
 
 	switch (feature_id) {
+	case SENSOR_FEATURE_GET_OUTPUT_FORMAT_BY_SCENARIO:
+		switch (*feature_data) {
+		case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
+		case SENSOR_SCENARIO_ID_NORMAL_VIDEO:
+		case SENSOR_SCENARIO_ID_HIGHSPEED_VIDEO:
+		case SENSOR_SCENARIO_ID_SLIM_VIDEO:
+		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
+			*(feature_data + 1)
+			= (enum ACDK_SENSOR_OUTPUT_DATA_FORMAT_ENUM)
+				imgsensor_info.sensor_output_dataformat;
+			break;
+		}
+	break;
 	// fuzr to do
 	case SENSOR_FEATURE_GET_ANA_GAIN_TABLE:
 	if ((void *)(uintptr_t) (*(feature_data + 1)) == NULL) {
@@ -2236,7 +2216,7 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
 		case SENSOR_SCENARIO_ID_SLIM_VIDEO:
 		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
 		default:
-			*feature_return_para_32 = 2; /*BINNING_AVERAGED*/
+			*feature_return_para_32 = 1; /*BINNING_AVERAGED*/
 			break;
 		}
 		pr_debug("SENSOR_FEATURE_GET_BINNING_TYPE AE_binning_type:%d,\n",
@@ -2286,7 +2266,7 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
 	    night_mode(ctx, (BOOL) * feature_data);
 	break;
 	case SENSOR_FEATURE_SET_GAIN:
-	    set_gain(ctx, (UINT16) * feature_data);
+	    set_gain(ctx, (UINT32) * feature_data);
 	break;
 	case SENSOR_FEATURE_SET_FLASHLIGHT:
 	break;
@@ -2434,13 +2414,13 @@ case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 		switch (*feature_data) {
 		case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
 		case SENSOR_SCENARIO_ID_NORMAL_VIDEO:
-		case SENSOR_SCENARIO_ID_CUSTOM1:
+		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
 			memcpy((void *)PDAFinfo, (void *)&imgsensor_pd_info,
 				sizeof(struct SET_PD_BLOCK_INFO_T));
 			break;
+		case SENSOR_SCENARIO_ID_CUSTOM1:
 		case SENSOR_SCENARIO_ID_HIGHSPEED_VIDEO:
 		case SENSOR_SCENARIO_ID_SLIM_VIDEO:
-		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
 		default:
 			break;
 		}
@@ -2461,10 +2441,10 @@ case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 0;
 			break;
 		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
-			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 0;
+			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 1;
 			break;
 		case SENSOR_SCENARIO_ID_CUSTOM1:
-			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 1;
+			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 0;
 			break;
 		default:
 			*(MUINT32 *)(uintptr_t)(*(feature_data+1)) = 0;
@@ -2504,7 +2484,7 @@ case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 			break;
 		case SENSOR_SCENARIO_ID_CUSTOM1:
 			rate = imgsensor_info.custom1.mipi_pixel_rate;
-			break;	
+			break;
 		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
 		default:
 			rate = imgsensor_info.pre.mipi_pixel_rate;
@@ -2729,10 +2709,23 @@ static int get_csi_param(struct subdrv_ctx *ctx,
 {
 	csi_param->legacy_phy = 0;
 	csi_param->not_fixed_trail_settle = 0;
-	//csi_param->cphy_settle = 0x1b;
-	//csi_param->cphy_settle = 98;
 
-	csi_param->dphy_trail = 76;
+	switch (scenario_id) {
+	case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
+	case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
+	case SENSOR_SCENARIO_ID_NORMAL_VIDEO:
+		csi_param->dphy_trail = 76;
+		break;
+	case SENSOR_SCENARIO_ID_SLIM_VIDEO:
+		csi_param->dphy_trail = 275;
+		csi_param->dphy_data_settle = 59;
+		csi_param->dphy_clk_settle = 59;
+		break;
+	default:
+		//csi_param->dphy_trail = 125;
+		break;
+	}
+
 	return 0;
 }
 

@@ -70,6 +70,9 @@ static struct mtk_ddp_comp *default_comp1;
 static struct workqueue_struct *dither_pure_detect_wq;
 static struct work_struct dither_pure_detect_task;
 static unsigned int g_dither_mode = 1;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_dither_probe_ready;
+#endif
 
 enum COLOR_IOCTL_CMD {
 	DITHER_SELECT = 0,
@@ -383,7 +386,7 @@ static void mtk_dither_config(struct mtk_ddp_comp *comp,
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + DISP_REG_DITHER_CFG,
 		enable << 1 |
-		g_dither_relay_value[0], 0x3);
+		g_dither_relay_value[index_of_dither(comp->id)], 0x3);
 
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + DISP_REG_DITHER_SIZE,
@@ -870,6 +873,9 @@ static int mtk_disp_dither_probe(struct platform_device *pdev)
 		create_singlethread_workqueue("dither_pure_detect_wq");
 	INIT_WORK(&dither_pure_detect_task, dither_pure_detect_work);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_dither_probe_ready = true;
+#endif
 	DDPINFO("%s-\n", __func__);
 
 	return ret;

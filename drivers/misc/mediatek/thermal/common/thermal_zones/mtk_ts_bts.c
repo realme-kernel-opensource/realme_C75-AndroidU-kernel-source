@@ -26,9 +26,9 @@
 #include <linux/uidgid.h>
 #include <tmp_bts.h>
 #include <linux/slab.h>
-#if IS_ENABLED(CONFIG_MEDIATEK_MT6577_AUXADC)
+#include <linux/of.h>
 #include <linux/iio/consumer.h>
-#endif
+#include <linux/iio/iio.h>
 /*=============================================================
  *Weak functions
  *=============================================================
@@ -90,6 +90,7 @@ static int polling_trip_temp1 = 40000;
 static int polling_trip_temp2 = 20000;
 static int polling_factor1 = 5000;
 static int polling_factor2 = 10000;
+extern unsigned int is_project(int project);
 
 int bts_cur_temp = 1;
 
@@ -381,22 +382,85 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table6[] = {
 /* NCP15WF104F03RC(100K) */
 static struct BTS_TEMPERATURE BTS_Temperature_Table7[] = {
 	{-40, 4397119},
+    {-39, 4092874},
+	{-38, 3811717},
+	{-37, 3551749},
+	{-36, 3311236},
 	{-35, 3088599},
+	{-34, 2882396},
+	{-33, 2691310},
+	{-32, 2514137},
+	{-31, 2349778},
 	{-30, 2197225},
+	{-29, 2055558},
+	{-28, 1923932},
+	{-27, 1801573},
+	{-26, 1687773},
 	{-25, 1581881},
+	{-24, 1483100},
+	{-23, 1391113},
+	{-22, 1305413},
+	{-21, 1225531},
 	{-20, 1151037},
+	{-19, 1081535},
+	{-18, 1016661},
+	{-17, 956080},
+	{-16, 899481},
 	{-15, 846579},
+	{-14, 797111},
+	{-13, 750834},
+	{-12, 707524},
+	{-11, 666972},
 	{-10, 628988},
+	{-9, 593342},
+	{-8, 559931},
+	{-7, 528602},
+	{-6, 499212},
 	{-5, 471632},
+	{-4, 445772},
+	{-3, 421480},
+	{-2, 398652},
+	{-1, 377193},
 	{0, 357012},
+	{1, 338006},
+	{2, 320122},
+	{3, 303287},
+	{4, 287434},
 	{5, 272500},
+	{6, 258426},
+	{7, 245160},
+	{8, 232649},
+	{9, 220847},
 	{10, 209710},
+	{11, 199196},
+	{12, 189268},
+	{13, 179890},
+	{14, 171028},
 	{15, 162651},
+	{16, 154726},
+	{17, 147232},
+	{18, 140142},
+	{19, 133432},
 	{20, 127080},
+	{21, 121066},
+	{22, 115368},
+	{23, 109970},
+	{24, 104852},
 	{25, 100000},		/* 100K */
-	{30, 79222},
+	{26, 95398},
+	{27, 91032},
+	{28, 86889},
+	{29, 82956},
+	{30, 79221},
+	{31, 75675},
+	{32, 72306},
+	{33, 69104},
+	{34, 66061},
 	{35, 63167},
-#if defined(APPLY_PRECISE_NTC_TABLE)
+	{36, 60218},
+	{37, 57797},
+	{38, 55306},
+	{39, 52934},
 	{40, 50677},
 	{41, 48528},
 	{42, 46482},
@@ -439,34 +503,49 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table7[] = {
 	{79, 10946},
 	{80, 10565},
 	{81, 10199},
-	{82,  9847},
-	{83,  9509},
-	{84,  9184},
-	{85,  8872},
-	{86,  8572},
-	{87,  8283},
-	{88,  8005},
-	{89,  7738},
-	{90,  7481},
-#else
-	{40, 50677},
-	{45, 40904},
-	{50, 33195},
-	{55, 27091},
-	{60, 22224},
-	{65, 18323},
-	{70, 15184},
-	{75, 12635},
-	{80, 10566},
-	{85, 8873},
+	{82, 9847},
+	{83, 9509},
+	{84, 9184},
+	{85, 8872},
+	{86, 8572},
+	{87, 8283},
+	{88, 8005},
+	{89, 7738},
 	{90, 7481},
-#endif
+	{91, 7234},
+	{92, 6997},
+	{93, 6769},
+	{94, 6548},
 	{95, 6337},
+	{96, 6137},
+	{97, 5934},
+	{98, 5744},
+	{99, 5561},
 	{100, 5384},
+	{101, 5214},
+	{102, 5051},
+	{103, 4893},
+	{104, 4741},
 	{105, 4594},
+	{106, 4453},
+	{107, 4316},
+	{108, 4184},
+	{109, 4057},
 	{110, 3934},
+	{111, 3816},
+	{112, 3701},
+	{113, 3591},
+	{114, 3484},
 	{115, 3380},
+	{116, 3281},
+	{117, 3185},
+	{118, 3093},
+	{119, 3003},
 	{120, 2916},
+	{121, 2832},
+	{122, 2751},
+	{123, 2672},
+	{124, 2596},
 	{125, 2522}
 };
 
@@ -483,9 +562,9 @@ static __s32 mtkts_bts_thermistor_conver_temp(__s32 Res)
 #endif
 	asize = (ntc_tbl_size / sizeof(struct BTS_TEMPERATURE));
 
-	/* mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() :
-	 * asize = %d, Res = %d\n",asize,Res);
-	 */
+	 /*mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() :asize = %d, Res = %d\n",
+	 	asize,Res);*/
+
 	if (Res >= BTS_Temperature_Table[0].TemperatureR) {
 		TAP_Value = -40;	/* min */
 #ifdef APPLY_PRECISE_BTS_TEMP
@@ -499,24 +578,24 @@ static __s32 mtkts_bts_thermistor_conver_temp(__s32 Res)
 	} else {
 		RES1 = BTS_Temperature_Table[0].TemperatureR;
 		TMP1 = BTS_Temperature_Table[0].BTS_Temp;
-		/* mtkts_bts_dprintk("%d : RES1 = %d,TMP1 = %d\n",
-		 * __LINE__,RES1,TMP1);
-		 */
+		 /*mtkts_bts_dprintk("%d : RES1 = %d,TMP1 = %d\n",
+		  __LINE__,RES1,TMP1);*/
+
 
 		for (i = 0; i < asize; i++) {
 			if (Res >= BTS_Temperature_Table[i].TemperatureR) {
 				RES2 = BTS_Temperature_Table[i].TemperatureR;
 				TMP2 = BTS_Temperature_Table[i].BTS_Temp;
-				/* mtkts_bts_dprintk("%d :i=%d, RES2 = %d,
-				 * TMP2 = %d\n",__LINE__,i,RES2,TMP2);
-				 */
+				 /*mtkts_bts_dprintk("%d :i=%d, RES2 = %d,TMP2 = %d\n",
+				 	__LINE__,i,RES2,TMP2);*/
+
 				break;
 			}
 			RES1 = BTS_Temperature_Table[i].TemperatureR;
 			TMP1 = BTS_Temperature_Table[i].BTS_Temp;
-			/* mtkts_bts_dprintk("%d :i=%d, RES1 = %d,TMP1 = %d\n",
-			 * __LINE__,i,RES1,TMP1);
-			 */
+			 /*mtkts_bts_dprintk("%d :i=%d, RES1 = %d,TMP1 = %d\n",
+			  __LINE__,i,RES1,TMP1);*/
+
 		}
 #ifdef APPLY_PRECISE_BTS_TEMP
 		TAP_Value = mult_frac((((Res - RES2) * TMP1) +
@@ -572,7 +651,7 @@ static __s32 mtk_ts_bts_volt_to_temp(__u32 dwVolt)
 #endif
 	/* ------------------------------------------------------------------ */
 	g_AP_TemperatureR = TRes;
-
+	/*mtkts_bts_dprintk("%s:g_RAP_pull_up_R = %d", __func__,g_RAP_pull_up_R);*/
 	/* convert register to temperature */
 	BTS_TMP = mtkts_bts_thermistor_conver_temp(TRes);
 
@@ -825,11 +904,11 @@ static int mtkts_bts_unbind(struct thermal_zone_device *thermal,
 	} else
 		return 0;
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtkts_bts_dprintk(
-	//		"[%s] error unbinding cooling dev\n", __func__);
-	//	return -EINVAL;
-//	}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtkts_bts_dprintk(
+			"[%s] error unbinding cooling dev\n", __func__);
+		return -EINVAL;
+	}
 
 	mtkts_bts_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
@@ -1231,16 +1310,26 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			/* check unsupport pin value, if unsupport,
 			 * set channel = 1 as default setting.
 			 */
-			g_RAP_ADC_channel = AUX_IN0_NTC;
+			 if (is_project(24700) || is_project(24701) || is_project(24702) || is_project(24709)) {
+				 g_RAP_ADC_channel = AUX_IN1_NTC;
+				} else {
+				 g_RAP_ADC_channel = AUX_IN0_NTC;
+				}
 		else {
 			/* check if there is any param input,
 			 * if not using default g_RAP_ADC_channel:1
 			 */
-			if (ptr_mtktsbts_parm_data->adc_channel != 11)
+			if (ptr_mtktsbts_parm_data->adc_channel != 11) {
 				g_RAP_ADC_channel =
 					ptr_mtktsbts_parm_data->adc_channel;
-			else
-				g_RAP_ADC_channel = AUX_IN0_NTC;
+			}
+			else{
+				if(is_project(24700) || is_project(24701) || is_project(24702) || is_project(24709)) {
+				 g_RAP_ADC_channel = AUX_IN1_NTC;
+				} else {
+				 g_RAP_ADC_channel = AUX_IN0_NTC;
+				}
+			}
 		}
 		mtkts_bts_dprintk("adc_channel=%d\n",
 					ptr_mtktsbts_parm_data->adc_channel);
@@ -1248,6 +1337,8 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 						g_RAP_ADC_channel);
 
 		mtkts_bts_prepare_table(g_RAP_ntc_table);
+		/*mtkts_bts_dprintk("%s:g_RAP_pull_up_R=%d\n",__func__,
+							g_RAP_pull_up_R);*/
 
 		kfree(ptr_mtktsbts_parm_data);
 		return count;

@@ -17,10 +17,13 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/spm/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mdpm_v1/inc/
 
 obj-$(CONFIG_MTK_MDPM_LEGACY) += mtk_mdpm_v1.o
+obj-$(CONFIG_MTK_MDPM_LEGACY_V1) += mtk_mdpm_v1.o
 mtk_mdpm_v1-y += mtk_mdpm_common.o
 
 ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6765)),)
 mtk_mdpm_v1-y += mtk_mdpm_platform_6765.o
 endif
 
-
+ifneq ($(strip $(CONFIG_MTK_MDPM_LEGACY_V1)),)
+mtk_mdpm_v1-y += mtk_mdpm_platform_v1.o
+endif

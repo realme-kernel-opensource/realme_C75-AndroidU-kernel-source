@@ -180,7 +180,7 @@ struct vow_dump_info_t {
 	uint32_t      size;               // size of reserved buffer (bytes)
 	uint32_t      scp_dump_offset[VOW_MAX_CH_NUM]; // return data offset from scp
 	uint32_t      scp_dump_size[VOW_MAX_CH_NUM];   // return data size from scp
-	short         *kernel_dump_addr;  // kernel internal buffer address
+	char         *kernel_dump_addr;  // kernel internal buffer address
 	unsigned int  kernel_dump_idx;    // current index of kernel_dump_addr
 	unsigned int  kernel_dump_size;   // size of kernel_dump_ptr buffer (bytes)
 	unsigned long user_dump_addr;     // addr of user dump buffer
@@ -696,7 +696,16 @@ static int vow_service_GetParameter(unsigned long arg)
 		VOWDRV_DEBUG("vow get parameter fail\n");
 		return -EFAULT;
 	}
-	if (vow_info_ap[3] > VOW_MODEL_SIZE ||
+	if(VENDOR_ID_SPEECH == vow_info_ap[5]) {
+		//ignore aispeech model size
+		VOWDRV_DEBUG("ignore vow Modle size check in case of aispeech %d\n", vow_info_ap[3]);
+	}
+	else if(VENDOR_ID_BREENO == vow_info_ap[5]) {
+		//ignore breeno model size
+		VOWDRV_DEBUG("ignore vow Modle size check in case of breeno %d\n", 
+			     (unsigned int)vow_info_ap[3]);
+	}
+	else if (vow_info_ap[3] > VOW_MODEL_SIZE ||
 	    vow_info_ap[3] < VOW_MODEL_SIZE_THRES) {
 		VOWDRV_DEBUG("vow Modle Size is incorrect %d\n",
 			     (unsigned int)vow_info_ap[3]);
@@ -869,7 +878,7 @@ static bool vow_service_ReleaseSpeakerModel(int id)
 
 	if (I == -1) {
 		VOWDRV_DEBUG("vow release Speaker Model Fail, id:%x\n", id);
-		return false;
+		return true;
 	}
 	VOWDRV_DEBUG("vow ReleaseSpeakerModel:id_%x, slot_%d\n", id, I);
 
@@ -895,12 +904,14 @@ static bool vow_service_SetSpeakerModel(unsigned long arg)
 	char *ptr8;
 #endif
 
-	I = vow_service_FindFreeSpeakerModel();
-	if (I == -1)
-		return false;
-
 	if (vow_service_GetParameter(arg) != 0)
 		return false;
+	I  = vow_service_SearchSpeakerModelWithKeyword(vowserv.vow_info_apuser[1]);
+	if (I  < 0) {
+		I = vow_service_FindFreeSpeakerModel();
+		if (I == -1)
+			return false;
+	}
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
 	mutex_lock(&vow_sendspkmdl_mutex);
 	vowserv.vow_speaker_model[I].model_ptr =
@@ -1157,7 +1168,7 @@ static bool vow_service_SetApDumpAddr(unsigned long arg)
 	}
 
 	/* add return condition */
-	if ((vow_info[2] == 0) || (vow_info[3] != kReadVowDumpSize) ||
+	if ((vow_info[2] == 0) || ((vow_info[3] != kReadVowDumpSize) && (vow_info[3] != 4 * kReadVowDumpSize)) ||
 	    (vow_info[4] == 0) || (vow_info[0] >= NUM_DUMP_DATA)) {
 		VOWDRV_DEBUG("%s(), vow SetdumpAddr error!\n", __func__);
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_DEBUG_SUPPORT)
@@ -1548,7 +1559,7 @@ static void vow_service_GetVowDumpData(void)
 					size = temp_dump_info.scp_dump_size[0] * 2;
 				}
 				vow_interleaving(
-					&temp_dump_info.kernel_dump_addr[idx],
+					(short *)&temp_dump_info.kernel_dump_addr[idx],
 					(short *)(temp_dump_info.vir_addr +
 						temp_dump_info.scp_dump_offset[0]),
 					(short *)(temp_dump_info.vir_addr +
@@ -1582,7 +1593,7 @@ static void vow_service_GetVowDumpData(void)
 			//		 );
 			//}
 			//copy kernel to user space
-			if (temp_dump_info.user_dump_size != kReadVowDumpSize) {
+			if (temp_dump_info.user_dump_size != kReadVowDumpSize && temp_dump_info.user_dump_size != kReadVowDumpSize*4) {
 				VOWDRV_DEBUG("%s(), user_dump_size=0x%x, kReadVowDumpSize=0x%x\n",
 						__func__,
 						(unsigned int)temp_dump_info.user_dump_size,
@@ -1634,8 +1645,10 @@ static void vow_service_GetVowDumpData(void)
 					   size_left);
 				mutex_unlock(&vow_vmalloc_lock);
 				temp_dump_info.kernel_dump_idx = size_left;
-			} else
+			} else {
 				temp_dump_info.kernel_dump_idx = 0;
+				temp_dump_info.user_dump_idx = 0;
+			}
 			spin_lock_irqsave(&vowdrv_dump_lock, flags);
 			vow_dump_info[i].kernel_dump_idx = temp_dump_info.kernel_dump_idx;
 			vow_dump_info[i].user_dump_idx = temp_dump_info.user_dump_idx;
@@ -1709,6 +1722,8 @@ static void vow_service_reset(void)
 	bool ret = false;
 
 	VOWDRV_DEBUG("+%s()\n", __func__);
+	vowserv.scp_command_flag = false;
+	vowserv.tx_keyword_start = false;
 	vow_hal_reboot();
 	for (I = 0; I < MAX_VOW_SPEAKER_MODEL; I++) {
 		if (vowserv.vow_speaker_model[I].enabled  == 1) {
@@ -2957,6 +2972,14 @@ static ssize_t VowDrv_read(struct file *fp,
 	bool dsp_inform_tx_flag = false;
 
 	VOWDRV_DEBUG("+%s()+\n", __func__);
+	if (count != sizeof(struct vow_eint_data_struct_t)) {
+		VOWDRV_DEBUG(
+			"%s(), cpy incorrect size to user, size=%d, correct size=%d, exit\n",
+			__func__,
+			count,
+			sizeof(struct vow_eint_data_struct_t));
+		goto exit;
+	}
 	VowDrv_SetVowEINTStatus(VOW_EINT_RETRY);
 
 	if (VowDrv_Wait_Queue_flag == 0)
@@ -3089,13 +3112,7 @@ exit:
 
 static int VowDrv_flush(struct file *flip, fl_owner_t id)
 {
-	bool ret = false;
-
-	VOWDRV_DEBUG("%s(), Send VOW_FLUSH ipi\n", __func__);
-
-	ret = vow_ipi_send(IPIMSG_VOW_FLUSH, 0, NULL, VOW_IPI_BYPASS_ACK);
-	if (ret == 0)
-		VOWDRV_DEBUG("IPIMSG_VOW_FLUSH ipi send error\n\r");
+	VOWDRV_DEBUG("%s()\n", __func__);
 	return 0;
 }
 

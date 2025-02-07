@@ -293,8 +293,9 @@ static int __init init_perf_common(void)
 get_base_failed:
 #if IS_ENABLED(CONFIG_MEDIATEK_CPU_DVFS)
 	return 0;
-#endif
+#else
 	exit_cpufreq_table();
+#endif
 register_failed:
 	unregister_trace_android_vh_scheduler_tick(perf_common, NULL);
 out:
@@ -314,7 +315,7 @@ static void __exit exit_perf_common(void)
 #endif
 }
 
-module_init(init_perf_common);
+late_initcall_sync(init_perf_common);
 module_exit(exit_perf_common);
 
 MODULE_LICENSE("GPL");

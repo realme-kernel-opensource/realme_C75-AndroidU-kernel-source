@@ -1353,7 +1353,7 @@ static bool mdp_check_camin_support_virtual(void)
 static bool mdp_svp_support_meta_data(void)
 {
 	/* early GKI2.0 about mt6768 not support secure */
-	return false;
+	return true;
 }
 
 void cmdq_mdp_platform_function_setting(void)
@@ -1414,6 +1414,6 @@ void cmdq_mdp_platform_function_setting(void)
 	/* feature support about mdp */
 	pFunc->mdpIsCaminSupport = mdp_check_camin_support_virtual;
 	pFunc->mdpSvpSupportMetaData = mdp_svp_support_meta_data;
-
+	pFunc->cmdqMdpSetResourceCallback = cmdq_mdp_set_resource_callback;
 }
 MODULE_LICENSE("GPL");

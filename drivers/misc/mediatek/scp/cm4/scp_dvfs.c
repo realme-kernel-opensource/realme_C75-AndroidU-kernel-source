@@ -127,6 +127,30 @@ int scp_resource_req(unsigned int req_type)
 }
 EXPORT_SYMBOL(scp_resource_req);
 
+void scp_resource_req_ext(unsigned int req_type)
+{
+	if (!dvfs) {
+		pr_debug("scp dvfs not ready\n");
+		return;
+	}
+	if (dvfs->legacy_support_v2)
+		scp_resource_req(req_type);
+	else
+		spm_resource_req(SPM_RESOURCE_USER_SCP, req_type);
+}
+EXPORT_SYMBOL(scp_resource_req_ext);
+
+void scp_register_print_ipi_id_cb(void (*scp_callback)(void))
+{
+	if (!dvfs) {
+		pr_debug("scp dvfs not ready\n");
+		return;
+	}
+	if (!(dvfs->legacy_support_v2))
+		spm_set_scp_ipi_id_cb(scp_callback);
+}
+EXPORT_SYMBOL(scp_register_print_ipi_id_cb);
+
 static int scp_get_sub_feature_idx(enum subsys_enum sys_e,
 		enum sub_feature_enum comp_e)
 {
@@ -319,7 +343,7 @@ int scp_set_pmic_vcore(unsigned int cur_freq)
 		int max_vcore = 0;
 		int max_vsram = 0;
 
-		if (!dvfs->platform_mt6768 && !dvfs->platform_mt6781) {
+		if (!dvfs->legacy_support_v1 && !dvfs->legacy_support_v2) {
 			max_vcore = dvfs->opp[dvfs->scp_opp_num - 1].vcore + 100000;
 			max_vsram = dvfs->opp[dvfs->scp_opp_num - 1].vsram + 100000;
 		}
@@ -331,7 +355,7 @@ int scp_set_pmic_vcore(unsigned int cur_freq)
 
 		/* vcore MAX_uV set to highest opp + 100mV */
 
-		if (dvfs->platform_mt6768 || dvfs->platform_mt6781) {
+		if (dvfs->legacy_support_v1 || dvfs->legacy_support_v2) {
 			set_step = (vcore - min_uV) / uV_step;
 			if (vcore > min_uV && set_step < n_voltages) {
 				ret_vc = regmap_update_bits(sd[SYS_PMIC].regmap,
@@ -488,7 +512,7 @@ int scp_request_freq(void)
 
 		/* Request SPM not to turn off mainpll/26M/infra */
 		/* because SCP may park in it during DFS process */
-		if (dvfs->platform_mt6781)
+		if (dvfs->legacy_support_v2)
 			scp_resource_req(SCP_REQ_26M | SCP_REQ_IFR | SCP_REQ_SYSPLL1);
 		else
 			spm_resource_req(SPM_RESOURCE_USER_SCP,
@@ -532,9 +556,9 @@ int scp_request_freq(void)
 		if (is_increasing_freq == 0)
 			scp_vcore_request(scp_expected_freq);
 
-		if (!dvfs->platform_mt6768) {
+		if (!dvfs->legacy_support_v1) {
 			if (scp_expected_freq == MAINPLL_273M) {
-				if (dvfs->platform_mt6781) {
+				if (dvfs->legacy_support_v2) {
 					scp_resource_req(SCP_REQ_26M | SCP_REQ_IFR |
 							SCP_REQ_SYSPLL1);
 				} else {
@@ -542,7 +566,7 @@ int scp_request_freq(void)
 							SPM_RESOURCE_MAINPLL);
 				}
 			} else if (scp_expected_freq == UNIVPLL_416M) {
-				if (dvfs->platform_mt6781) {
+				if (dvfs->legacy_support_v2) {
 					scp_resource_req(SCP_REQ_26M | SCP_REQ_IFR);
 				} else {
 					spm_resource_req(SPM_RESOURCE_USER_SCP,
@@ -550,7 +574,7 @@ int scp_request_freq(void)
 							SPM_RESOURCE_AXI_BUS);
 				}
 			} else {
-				if (dvfs->platform_mt6781) {
+				if (dvfs->legacy_support_v2) {
 					scp_resource_req(SCP_REQ_RELEASE);
 				} else {
 					spm_resource_req(SPM_RESOURCE_USER_SCP,
@@ -559,7 +583,7 @@ int scp_request_freq(void)
 			}
 		} else {
 			if (scp_expected_freq == UNIVPLL_416M) {
-				if (dvfs->platform_mt6781) {
+				if (dvfs->legacy_support_v2) {
 					scp_resource_req(SCP_REQ_26M | SCP_REQ_IFR);
 				} else {
 					spm_resource_req(SPM_RESOURCE_USER_SCP,
@@ -567,7 +591,7 @@ int scp_request_freq(void)
 								SPM_RESOURCE_AXI_BUS);
 				}
 			} else {
-				if (dvfs->platform_mt6781) {
+				if (dvfs->legacy_support_v2) {
 					scp_resource_req(SCP_REQ_RELEASE);
 				} else {
 					spm_resource_req(SPM_RESOURCE_USER_SCP,
@@ -623,7 +647,7 @@ int scp_pll_ctrl_set(unsigned int pll_ctrl_flag, unsigned int pll_sel)
 
 	if (pll_ctrl_flag == PLL_ENABLE) {
 		if (pre_pll_sel != UNIVPLL_416M) {
-			if (dvfs->platform_mt6768) {
+			if (dvfs->legacy_support_v1) {
 				if (pre_pll_sel != MAINPLL_273M)
 					ret = clk_prepare_enable(mt_scp_pll->clk_mux);
 			} else
@@ -658,7 +682,7 @@ int scp_pll_ctrl_set(unsigned int pll_ctrl_flag, unsigned int pll_sel)
 			pre_pll_sel = pll_sel;
 	} else if ((pll_ctrl_flag == PLL_DISABLE) &&
 			(pll_sel != UNIVPLL_416M)) {
-		if (dvfs->platform_mt6768) {
+		if (dvfs->legacy_support_v1) {
 			if (pre_pll_sel != MAINPLL_273M)
 				clk_disable_unprepare(mt_scp_pll->clk_mux);
 		} else
@@ -1265,7 +1289,7 @@ fail:
 	return ret;
 }
 
-static void mt_pmic_sshub_init_for_mt6768(void)
+static void mt_pmic_sshub_init_for_legacy_v1(void)
 {
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
 	unsigned int val[8];
@@ -1283,12 +1307,14 @@ static void mt_pmic_sshub_init_for_mt6768(void)
 	val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
 
 	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON1, 0x7f, 24);
-	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON1, 0x7f, 1);
-	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON0, 0x1, 0);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON1, 0x7f00, 6144);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON0, 0x1, 1);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON0, 0x2, 0);
 
 	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON1, 0x7f, 64);
-	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON1, 0x7f, 1);
-	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON0, 0x1, 0);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON1, 0x7f00, 16384);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON0, 0x1, 1);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_LDO_VSRAM_OTHERS_SSHUB_CON0, 0x2, 0);
 
 	regmap_read(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON0, val);
 	regmap_read(sd[SYS_PMIC].regmap, MT6358_BUCK_VCORE_SSHUB_CON1, val+1);
@@ -1303,15 +1329,15 @@ static void mt_pmic_sshub_init_for_mt6768(void)
 	val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
 
 	/*  Workaround once force BUCK in NML mode */
-	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_TOP_CLK_CON0, 0x1, 1);
+	regmap_update_bits(sd[SYS_PMIC].regmap, MT6358_TOP_CLK_CON0, 0x10, 0x10);
 #endif
 }
 
 static void __init mt_pmic_sshub_init(void)
 {
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
-	if (dvfs->platform_mt6768) {
-		mt_pmic_sshub_init_for_mt6768();
+	if (dvfs->legacy_support_v1) {
+		mt_pmic_sshub_init_for_legacy_v1();
 	} else {
 		int max_vcore = dvfs->opp[dvfs->scp_opp_num - 1].vcore + 100000;
 		int max_vsram = dvfs->opp[dvfs->scp_opp_num - 1].vsram + 100000;
@@ -1473,7 +1499,7 @@ static int __init mt_scp_dvfs_pdrv_probe(struct platform_device *pdev)
 		kfree(gpio_mode);
 	}
 
-	if (dvfs->platform_mt6781) {
+	if (dvfs->legacy_support_v2) {
 		/* get GPIO value by GPIO API */
 		/* get high/low level of gpio pin */
 		gpio_idx = of_get_named_gpio(pdev->dev.of_node, "vsram_chk_gpio", 0);
@@ -1541,8 +1567,8 @@ static int __init mt_scp_dvfs_pdrv_probe(struct platform_device *pdev)
 	}
 
 	dvfs->opp = opp;
-	dvfs->platform_mt6768 = of_property_read_bool(node, "platform-mt6768-support");
-	dvfs->platform_mt6781 = of_property_read_bool(node, "platform-mt6781-support");
+	dvfs->legacy_support_v1 = of_property_read_bool(node, "legacy_support_v1");
+	dvfs->legacy_support_v2 = of_property_read_bool(node, "legacy_support_v2");
 
 	/* get dvfsrc table opp count */
 	ret = of_property_read_u32(node, "dvfsrc-opp-num",

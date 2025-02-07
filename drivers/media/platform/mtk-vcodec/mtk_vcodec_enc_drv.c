@@ -38,7 +38,7 @@ static int mtk_vcodec_vcp_log_write(const char *val, const struct kernel_param *
 {
 	if (!(val == NULL || strlen(val) == 0)) {
 		mtk_v4l2_debug(0, "val: %s, len: %zu", val, strlen(val));
-		mtk_vcodec_set_log(dev_ptr, val, MTK_VCODEC_LOG_INDEX_LOG);
+		mtk_vcodec_set_log(NULL, dev_ptr, val, MTK_VCODEC_LOG_INDEX_LOG, NULL);
 	}
 	return 0;
 }
@@ -51,7 +51,7 @@ static int mtk_vcodec_vcp_property_write(const char *val, const struct kernel_pa
 {
 	if (!(val == NULL || strlen(val) == 0)) {
 		mtk_v4l2_debug(0, "val: %s, len: %zu", val, strlen(val));
-		mtk_vcodec_set_log(dev_ptr, val, MTK_VCODEC_LOG_INDEX_PROP);
+		mtk_vcodec_set_log(NULL, dev_ptr, val, MTK_VCODEC_LOG_INDEX_PROP, NULL);
 	}
 	return 0;
 }
@@ -338,8 +338,9 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-
-	while (!of_property_read_string_index(pdev->dev.of_node, "reg-names", i, &name)) {
+	for (i = 0; i < NUM_MAX_VDEC_REG_BASE; i++)
+		dev->dec_reg_base[i] = NULL;
+	for (i = 0; !of_property_read_string_index(pdev->dev.of_node, "reg-names", i, &name); i++) {
 		if (!strcmp(MTK_VDEC_REG_NAME_VENC_SYS, name)) {
 			reg_index = VENC_SYS;
 		} else if (!strcmp(MTK_VDEC_REG_NAME_VENC_C1_SYS, name)) {
@@ -447,7 +448,6 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 	mutex_init(&dev->enc_dvfs_mutex);
 	mutex_init(&dev->log_param_mutex);
 	mutex_init(&dev->prop_param_mutex);
-	mutex_init(&dev->enc_hw_mutex);
 	spin_lock_init(&dev->irqlock);
 
 	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",

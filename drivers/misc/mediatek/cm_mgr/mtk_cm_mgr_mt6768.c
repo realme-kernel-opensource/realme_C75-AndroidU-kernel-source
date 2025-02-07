@@ -73,6 +73,8 @@ static int cm_mgr_check_dram_type(void)
 
 	if (ddr_type == TYPE_LPDDR4X || ddr_type == TYPE_LPDDR4)
 		cm_mgr_idx = CM_MGR_LP4;
+	else if (ddr_type == TYPE_LPDDR3)
+		cm_mgr_idx = CM_MGR_LP3;
 	pr_info("#@# %s(%d) ddr_type 0x%x, ddr_hz %d, cm_mgr_idx 0x%x\n",
 			__func__, __LINE__, ddr_type, ddr_hz, cm_mgr_idx);
 #else
@@ -337,13 +339,13 @@ static int platform_cm_mgr_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "get cm-perf_bw fail\n");
 		cm_mgr_set_bw_path(NULL);
 	}
-
+	cm_mgr_set_bw_path(bw_path);
 	if (ret > 0) {
 		cm_mgr_perfs = devm_kzalloc(&pdev->dev,
 				ret * sizeof(u32),
 				GFP_KERNEL);
 
-		if (!ret) {
+		if (!cm_mgr_perfs) {
 			ret = -ENOMEM;
 			goto ERROR;
 		}

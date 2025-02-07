@@ -12,6 +12,9 @@
 #include "mtk_drm_fb.h"
 #include "mtk_drm_gem.h"
 #include "mtk_drm_crtc.h"
+/*#ifdef OPLUS_BUG_STABILITY*/
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+/*#endif*/
 
 /*
  * mtk specific framebuffer structure.
@@ -78,6 +81,22 @@ bool mtk_drm_fb_is_secure(struct drm_framebuffer *fb)
 	mtk_gem = to_mtk_gem_obj(gem);
 	return mtk_gem->sec;
 }
+
+int mtk_fb_get_sec_id(struct drm_framebuffer *fb)
+{
+	struct drm_gem_object *gem = NULL;
+	struct mtk_drm_gem_obj *mtk_gem = NULL;
+
+
+	if (!fb)
+		return false;
+	gem = mtk_fb_get_gem_obj(fb);
+	if (!gem)
+		return false;
+	mtk_gem = to_mtk_gem_obj(gem);
+	return mtk_gem->sec_id;
+}
+EXPORT_SYMBOL_GPL(mtk_fb_get_sec_id);
 
 static int mtk_drm_fb_create_handle(struct drm_framebuffer *fb,
 				    struct drm_file *file_priv,
@@ -169,6 +188,9 @@ int mtk_fb_wait(struct drm_framebuffer *fb)
 		DDPAEE("%s:%d, invalid ret:%ld\n",
 			__func__, __LINE__,
 			ret);
+		/*#ifdef OPLUS_BUG_STABILITY*/
+		mm_fb_display_kevent("DisplayDriverID@@505$$", MM_FB_KEY_RATELIMIT_1H, "mtk_fb_wait invalid ret:%ld", ret);
+		/*#endif*/
 		return ret;
 	}
 

@@ -26,21 +26,6 @@
 #include "kd_imgsensor_api.h"
 
 /*=============================================================
- * Weak function
- *=============================================================
- */
-MUINT32 __attribute__ ((weak))
-Get_Camera_Temperature(
-enum CAMERA_DUAL_CAMERA_SENSOR_ENUM senDevId, MUINT8 *valid, MUINT32 *temp)
-{
-	*valid = SENSOR_TEMPERATURE_CANNOT_SEARCH_SENSOR;
-	*temp = -127;
-	pr_notice("[Thermal/TZ/IMGS] E_WF: %s doesn't exist\n", __func__);
-
-	return -1;
-}
-
-/*=============================================================
  * Macro
  *=============================================================
  */
@@ -401,12 +386,12 @@ struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 
 	mtk_imgs_dprintk("[%s ts %d] %s\n", __func__, index, cdev->type);
 
-	//if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-	//	mtk_imgs_dprintk(
-	//		"[%s ts %d] error unbinding cooling dev\n", __func__,
-	//								index);
-	//	return -EINVAL;
-	//}
+	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
+		mtk_imgs_dprintk(
+			"[%s ts %d] error unbinding cooling dev\n", __func__,
+									index);
+		return -EINVAL;
+	}
 
 	mtk_imgs_dprintk("[%s ts %d] unbinding OK\n", __func__, index);
 	return 0;

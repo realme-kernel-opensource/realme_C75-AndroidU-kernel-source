@@ -56,7 +56,7 @@ void mtk_mmdvfs_debug_release_step0(void)
 	unsigned int release_step0 = 0;
 
 	of_property_read_u32(node, "release-step0", &release_step0);
-	if (release_step0 && reg) {
+	if (release_step0 && !IS_ERR(reg) && reg) {
 		regulator_set_voltage(reg, 0, INT_MAX);
 		pr_notice("%s: set vcore voltage(%d)\n", __func__, 0);
 	}

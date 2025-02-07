@@ -17,3 +17,4 @@ mtk_dramc-objs	+= dramc.o dramc_bin.o
 obj-$(CONFIG_MTK_EMI_LEGACY) += emicen.o
 obj-$(CONFIG_MTK_EMI_LEGACY) += emimpu.o
 obj-$(CONFIG_MTK_EMI_LEGACY) += emiisu.o
+obj-$(CONFIG_MTK_EMI_LEGACY) += emictrl.o

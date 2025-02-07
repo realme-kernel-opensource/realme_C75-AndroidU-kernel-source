@@ -321,6 +321,315 @@ struct ut_fs_test_sensor_cfg sensor_cfg_06[] = {
 };
 
 
+
+/* FL_act_delay : Normal(N+2) with STG-3-exp(N+2) */
+struct ut_fs_test_sensor_cfg sensor_cfg_07[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "imx766",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &imx766,
+		.mode = imx766_sensor_mode,
+		.mode_idx = 0, // 3-exp
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Normal(N+2) with STG-2-exp(N+2) */
+struct ut_fs_test_sensor_cfg sensor_cfg_08[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "imx766",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &imx766,
+		.mode = imx766_sensor_mode,
+		.mode_idx = 1, // 2-exp
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Normal(N+1) with Normal(N+1) */
+/* FPS: 30 vs 5 */
+struct ut_fs_test_sensor_cfg sensor_cfg_09[] = {
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 2, // 5 FPS
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Normal(N+1) with Normal(N+2) */
+/* FPS: 30 vs 5 */
+struct ut_fs_test_sensor_cfg sensor_cfg_10[] = {
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 2, // 5 FPS
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Normal(N+2) with Normal(N+1) */
+/* FPS: 30 vs 5 */
+struct ut_fs_test_sensor_cfg sensor_cfg_11[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 2, // 5 fps
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Normal(N+2) with Normal(N+2) */
+/* FPS: 30 vs 5 */
+struct ut_fs_test_sensor_cfg sensor_cfg_12[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 2, // 5 fps
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : Multi-Sensors Frame-Sync */
+/* 4 sensors (N+2/N+1/3-STG/2-STG) */
+struct ut_fs_test_sensor_cfg sensor_cfg_13[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	{
+		.sensor_name = "imx766",
+		.sensor_idx = 4,
+		.tg = 3,
+		.sensor = &imx766,
+		.mode = imx766_sensor_mode,
+		.mode_idx = 0, // 3-exp
+		.first_vts_value = 102000,
+	},
+
+	{
+		.sensor_name = "imx766",
+		.sensor_idx = 1,
+		.tg = 4,
+		.sensor = &imx766,
+		.mode = imx766_sensor_mode,
+		.mode_idx = 1, // 2-exp
+		.first_vts_value = 108000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
+/* FL_act_delay : 2-SA + 1-Async Frame-Sync */
+/* 3 sensors (N+2/N+1/N+X) */
+struct ut_fs_test_sensor_cfg sensor_cfg_14[] = {
+	{
+		.sensor_name = "imx586",
+		.sensor_idx = 0,
+		.tg = 2,
+		.sensor = &imx586,
+		.mode = imx586_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 100000,
+		.first_vts_value = 110000,
+	},
+
+	{
+		.sensor_name = "s5k3m5sx",
+		.sensor_idx = 2,
+		.tg = 1,
+		.sensor = &s5k3m5sx,
+		.mode = s5k3m5sx_sensor_mode,
+		.mode_idx = 0,
+		//.first_vts_value = 110000,
+		.first_vts_value = 100000,
+	},
+
+	{
+		.sensor_name = "imx516",
+		.sensor_idx = 4,
+		.tg = 3,
+		.sensor = &imx516,
+		.mode = imx516_sensor_mode,
+		.mode_idx = 0,
+		.first_vts_value = 102000,
+	},
+
+	/* End */
+	{
+		.sensor_idx = 255,
+		.tg = 255,
+		.sensor = NULL,
+		.mode = NULL,
+	}
+};
+
+
 /* FL_act_delay : Normal(N+2) with STG-3-exp(N+2) */
 struct ut_fs_test_sensor_cfg sensor_cfg_07[] = {
 	{
@@ -843,6 +1152,7 @@ struct ut_fs_test_env_cfg env_cfg_08 = {
 };
 
 
+
 /* perframe_ctrl trigger with lock_exp and lock_flk */
 /* sync_th increase to 700 */
 struct ut_fs_test_env_cfg env_cfg_09 = {
@@ -869,6 +1179,35 @@ struct ut_fs_test_env_cfg env_cfg_10 = {
 	.lock_exp_table_idx = 0, // 10002 us
 	.lock_flk = 1,
 };
+
+
+/* perframe_ctrl trigger with lock_exp and lock_flk */
+/* sync_th increase to 700 */
+struct ut_fs_test_env_cfg env_cfg_09 = {
+	.run_times = 10000,
+	.sync_th = 1000, // 550,
+	.passed_vsync = 0,
+	.passed_vsync_ratio = 0,
+	.passed_vsync_max_cnt = 0,
+	.lock_exp = 1,
+	.lock_exp_table_idx = 0, // 10002 us
+	.lock_flk = 1,
+};
+
+
+/* perframe_ctrl trigger with no lock_exp and lock_flk */
+/* sync_th increase to 700 */
+struct ut_fs_test_env_cfg env_cfg_10 = {
+	.run_times = 10000,
+	.sync_th = 1000, // 550,
+	.passed_vsync = 0,
+	.passed_vsync_ratio = 0,
+	.passed_vsync_max_cnt = 0,
+	.lock_exp = 0,
+	.lock_exp_table_idx = 0, // 10002 us
+	.lock_flk = 1,
+};
+
 
 
 /* perframe_ctrl trigger with no lock_exp and no lock_flk */

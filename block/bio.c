@@ -21,6 +21,7 @@
 #include <linux/blk-crypto.h>
 
 #include <trace/events/block.h>
+#include <trace/hooks/block.h>
 #include "blk.h"
 #include "blk-rq-qos.h"
 
@@ -252,6 +253,7 @@ static void bio_free(struct bio *bio)
 	struct bio_set *bs = bio->bi_pool;
 	void *p;
 
+	trace_android_vh_bio_free(bio);
 	bio_uninit(bio);
 
 	if (bs) {
@@ -690,7 +692,10 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
 	bio->bi_write_hint = bio_src->bi_write_hint;
 	bio->bi_iter = bio_src->bi_iter;
 	bio->bi_io_vec = bio_src->bi_io_vec;
-
+#ifdef CONFIG_DEVICE_XCOPY
+	if (op_is_copy(bio->bi_opf))
+		bio->bi_private = bio_src->bi_private;
+#endif
 	bio_clone_blkg_association(bio, bio_src);
 	blkcg_bio_issue_init(bio);
 }
@@ -877,11 +882,15 @@ bool __bio_try_merge_page(struct bio *bio, struct page *page,
 	if (bio->bi_vcnt > 0) {
 		struct bio_vec *bv = &bio->bi_io_vec[bio->bi_vcnt - 1];
 
+#if IS_ENABLED(CONFIG_MTK_BLK_IO_BOOST)
+		if (page == bv->bv_page && off == bv->bv_offset + bv->bv_len) {
+#else
 		if (page_is_mergeable(bv, page, len, off, same_page)) {
 			if (bio->bi_iter.bi_size > UINT_MAX - len) {
 				*same_page = false;
 				return false;
 			}
+#endif
 			bv->bv_len += len;
 			bio->bi_iter.bi_size += len;
 			return true;
@@ -1056,9 +1065,6 @@ static int __bio_iov_append_get_pages(struct bio *bio, struct iov_iter *iter)
 	unsigned len, i;
 	size_t offset;
 	int ret = 0;
-
-	if (WARN_ON_ONCE(!max_append_sectors))
-		return 0;
 
 	/*
 	 * Move page array up in the allocated memory for the bio vecs as far as

@@ -35,7 +35,7 @@
 #include "scp_excep.h"
 #include "scp_feature_define.h"
 #include "scp_scpctl.h"
-//#include "mtk_spm_resource_req.h"
+#include "mtk_spm_resource_req.h"
 
 #if IS_ENABLED(CONFIG_OF_RESERVED_MEM)
 #include <linux/of_reserved_mem.h>
@@ -43,11 +43,7 @@
 #endif
 
 #if ENABLE_SCP_EMI_PROTECTION
-#if IS_ENABLED(CONFIG_MTK_EMI_LEGACY)
-#include <mt_emi_api.h>
-#else
-#include "memory/mediatek/emi.h"
-#endif
+#include "soc/mediatek/emi.h"
 #endif
 
 /* scp semaphore timeout count definition */
@@ -134,34 +130,6 @@ DEFINE_SPINLOCK(scp_awake_spinlock);
 /* set flag after driver initial done */
 static bool driver_init_done;
 
-enum {
-	SPM_RESOURCE_RELEASE = 0,
-	SPM_RESOURCE_MAINPLL = 1 << 0,
-	SPM_RESOURCE_DRAM    = 1 << 1,
-	SPM_RESOURCE_CK_26M  = 1 << 2,
-	SPM_RESOURCE_AXI_BUS = 1 << 3,
-	SPM_RESOURCE_CPU     = 1 << 4,
-	NF_SPM_RESOURCE = 5,
-
-	SPM_RESOURCE_ALL = (1 << NF_SPM_RESOURCE) - 1
-};
-
-enum {
-	SPM_RESOURCE_USER_SPM = 0,
-	SPM_RESOURCE_USER_UFS,
-	SPM_RESOURCE_USER_SSUSB,
-	SPM_RESOURCE_USER_AUDIO,
-	SPM_RESOURCE_USER_UART,
-	SPM_RESOURCE_USER_CONN,
-	SPM_RESOURCE_USER_MSDC,
-	SPM_RESOURCE_USER_SCP,
-	NF_SPM_RESOURCE_USER
-};
-#if IS_BUILTIN(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
-static bool spm_resource_req(unsigned int user, unsigned int req_mask) {return true; }
-#else
-bool spm_resource_req(unsigned int user, unsigned int req_mask) {return true; }
-#endif
 /*
  * memory copy to scp sram
  * @param trg: trg address
@@ -399,7 +367,7 @@ static void scp_A_notify_ws(struct work_struct *ws)
 	/*clear reset status and unlock wake lock*/
 	pr_debug("[SCP] clear scp reset flag and unlock\n");
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
-	spm_resource_req(SPM_RESOURCE_USER_SCP, SPM_RESOURCE_RELEASE);
+	scp_resource_req_ext(SPM_RESOURCE_RELEASE);
 #endif  // CONFIG_FPGA_EARLY_PORTING
 	/* register scp dvfs*/
 	msleep(2000);
@@ -532,13 +500,6 @@ static void scp_A_ready_ipi_handler(int id, void *data, unsigned int len)
 	scp_ram_dump_init();
 }
 
-__attribute__((weak)) void report_hub_dmd(uint32_t case_id,
-				uint32_t sensor_id, char *context)
-{
-	pr_notice("[SCP] weak function to do nothing for cid(%d), sid(%d)\n",
-			case_id, sensor_id);
-}
-
 
 /*
  * Handle notification from scp.
@@ -564,7 +525,6 @@ static void scp_err_info_handler(int id, void *data, unsigned int len)
 	pr_notice("[SCP] Error_info: sensor id: %u\n", info->sensor_id);
 	pr_notice("[SCP] Error_info: context: %s\n", info->context);
 
-	report_hub_dmd(info->case_id, info->sensor_id, info->context);
 }
 
 
@@ -1060,7 +1020,7 @@ static int create_files(void)
 
 phys_addr_t scp_get_reserve_mem_phys(enum scp_reserve_mem_id_t id)
 {
-	if (id >= NUMS_MEM_ID || id < 0) {
+	if (id >= NUMS_MEM_ID) {
 		pr_err("[SCP] no reserve memory for %d", id);
 		return 0;
 	} else
@@ -1070,7 +1030,7 @@ EXPORT_SYMBOL_GPL(scp_get_reserve_mem_phys);
 
 phys_addr_t scp_get_reserve_mem_virt(enum scp_reserve_mem_id_t id)
 {
-	if (id >= NUMS_MEM_ID || id < 0) {
+	if (id >= NUMS_MEM_ID) {
 		pr_err("[SCP] no reserve memory for %d", id);
 		return 0;
 	} else
@@ -1080,7 +1040,7 @@ EXPORT_SYMBOL_GPL(scp_get_reserve_mem_virt);
 
 phys_addr_t scp_get_reserve_mem_size(enum scp_reserve_mem_id_t id)
 {
-	if (id >= NUMS_MEM_ID || id < 0) {
+	if (id >= NUMS_MEM_ID) {
 		pr_err("[SCP] no reserve memory for %d", id);
 		return 0;
 	} else
@@ -1227,51 +1187,27 @@ static int scp_reserve_memory_ioremap(struct platform_device *pdev)
 #endif
 
 #if ENABLE_SCP_EMI_PROTECTION
-#if IS_ENABLED(CONFIG_MTK_EMI_LEGACY)
 void set_scp_mpu(void)
 {
-	struct emi_region_info_t region_info;
+	struct emimpu_region_t md_region = {};
 
-	region_info.region = mpu_region_id;
-	region_info.start = scp_mem_base_phys;
-	region_info.end =  scp_mem_base_phys + scp_mem_size - 0x1;
+	int ret = mtk_emimpu_init_region(&md_region, mpu_region_id);
 
-	SET_ACCESS_PERMISSION(region_info.apc, UNLOCK,
-			FORBIDDEN, FORBIDDEN, FORBIDDEN, FORBIDDEN,
-			FORBIDDEN, FORBIDDEN, FORBIDDEN, FORBIDDEN,
-			FORBIDDEN, FORBIDDEN, FORBIDDEN, FORBIDDEN,
-			NO_PROTECTION, FORBIDDEN, FORBIDDEN, NO_PROTECTION);
-
-	pr_notice("[SCP] MPU protect SCP Share region<%d:%08llx:%08llx> %x, %x\n",
-			region_info.region,
-			(uint64_t)region_info.start,
-			(uint64_t)region_info.end,
-			region_info.apc[1], region_info.apc[1]);
-
-	emi_mpu_set_protection(&region_info);
+	if (ret == -1) {
+		pr_notice("[SCP] %s: emimpu_region init fail\n", __func__);
+		WARN_ON(1);
+	} else {
+		mtk_emimpu_set_addr(&md_region, scp_mem_base_phys,
+			scp_mem_base_phys + scp_mem_size - 1);
+		mtk_emimpu_set_apc(&md_region, MPU_DOMAIN_D0,
+			MTK_EMIMPU_NO_PROTECTION);
+		mtk_emimpu_set_apc(&md_region, MPU_DOMAIN_D3,
+			MTK_EMIMPU_NO_PROTECTION);
+		if (mtk_emimpu_set_protection(&md_region))
+			pr_notice("[SCP]mtk_emimpu_set_protection fail\n");
+		mtk_emimpu_free_region(&md_region);
+	}
 }
-#else
-void set_scp_mpu(void)
-{
-	struct emimpu_region_t md_region;
-
-	mtk_emimpu_init_region(&md_region, mpu_region_id);
-	mtk_emimpu_set_addr(&md_region, scp_mem_base_phys,
-		scp_mem_base_phys + scp_mem_size - 1);
-	mtk_emimpu_set_apc(&md_region, MPU_DOMAIN_D0,
-		MTK_EMIMPU_NO_PROTECTION);
-	mtk_emimpu_set_apc(&md_region, MPU_DOMAIN_D3,
-		MTK_EMIMPU_NO_PROTECTION);
-	if (mtk_emimpu_set_protection(&md_region))
-		pr_notice("[SCP]mtk_emimpu_set_protection fail\n");
-	mtk_emimpu_free_region(&md_region);
-	pr_notice("[SCP] MPU protect SCP Share region<%d:%08llx:%08llx>\n",
-			md_region.rg_num,
-			(uint64_t)md_region.start,
-			(uint64_t)md_region.end);
-
-}
-#endif
 #endif
 
 void scp_register_feature(enum feature_id id)
@@ -1558,7 +1494,7 @@ void scp_sys_reset_ws(struct work_struct *ws)
 
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
 	/* keep 26Mhz */
-	spm_resource_req(SPM_RESOURCE_USER_SCP, SPM_RESOURCE_CK_26M);
+	scp_resource_req_ext(SPM_RESOURCE_CK_26M);
 #endif  // CONFIG_FPGA_EARLY_PORTING
 	/*request pll clock before turn off scp */
 	pr_debug("[SCP] %s(): scp_pll_ctrl_set\n", __func__);
@@ -1958,9 +1894,10 @@ static int __init scp_init(void)
 	scp_pll_ctrl_set(PLL_ENABLE, CLK_26M);
 #endif
 
+	scp_register_print_ipi_id_cb(&mt_print_scp_ipi_id);
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
 	/* keep 26Mhz */
-	spm_resource_req(SPM_RESOURCE_USER_SCP, SPM_RESOURCE_CK_26M);
+	scp_resource_req_ext(SPM_RESOURCE_CK_26M);
 #endif  // CONFIG_FPGA_EARLY_PORTING
 
 	if (platform_driver_register(&mtk_scp_device)) {

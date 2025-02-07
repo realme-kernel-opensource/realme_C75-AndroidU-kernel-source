@@ -2558,6 +2558,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	static int ptim_vbat, ptim_i;
 	int int_value;
 	static int badcmd;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct power_supply *chg_psy = NULL;
+	union power_supply_propval prop;
+#endif
 
 	if (gm == NULL)
 		gm = get_mtk_battery();
@@ -2722,11 +2726,27 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		/* todo */
 		int is_charger_exist = 0;
 
+#ifndef OPLUS_FEATURE_CHG_BASIC
 		if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING)
-			is_charger_exist = true;
-		else
 			is_charger_exist = false;
-
+		else
+			is_charger_exist = true;
+#else
+		chg_psy = devm_power_supply_get_by_phandle(&gm->gauge->pdev->dev,
+						       "charger");
+		if (IS_ERR_OR_NULL(chg_psy)) {
+			bm_err("%s Couldn't get chg_psy\n", __func__);
+			is_charger_exist = false;
+		} else {
+			power_supply_get_property(chg_psy,
+				POWER_SUPPLY_PROP_ONLINE, &prop);
+					bm_err("%s get chg_psy\n", __func__);
+			if (prop.intval)
+				is_charger_exist = true;
+			else
+				is_charger_exist = false;
+		}
+#endif /*OPLUS_FEATURE_CHG_BASIC*/
 		ret_msg->fgd_data_len += sizeof(is_charger_exist);
 		memcpy(ret_msg->fgd_data,
 			&is_charger_exist, sizeof(is_charger_exist));
@@ -3049,12 +3069,28 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		/* charger status need charger API */
 		/* CHR_ERR = -1 */
 		/* CHR_NORMAL = 0 */
+#ifndef OPLUS_FEATURE_CHG_BASIC
 		if (gm->bs_data.bat_status ==
 			POWER_SUPPLY_STATUS_NOT_CHARGING)
 			charger_status = -1;
 		else
 			charger_status = 0;
-
+#else
+		chg_psy = devm_power_supply_get_by_phandle(&gm->gauge->pdev->dev,
+						       "charger");
+		if (IS_ERR_OR_NULL(chg_psy)) {
+			bm_err("%s Couldn't get chg_psy\n", __func__);
+			charger_status = -1;
+		} else {
+			power_supply_get_property(chg_psy,
+				POWER_SUPPLY_PROP_ONLINE, &prop);
+					bm_err("%s get chg_psy\n", __func__);
+			if (prop.intval)
+				charger_status = 0;
+			else
+				charger_status = -1;
+		}
+#endif /*OPLUS_FEATURE_CHG_BASIC*/
 		ret_msg->fgd_data_len += sizeof(charger_status);
 		memcpy(ret_msg->fgd_data,
 			&charger_status, sizeof(charger_status));
@@ -3713,8 +3749,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		if (gm->disableGM30)
 			vbat = 4000 * 10;
 		else
-			vbat = gauge_get_int_property(
-				GAUGE_PROP_BATTERY_VOLTAGE) * 10;
+			vbat = gauge_get_int_property(GAUGE_PROP_BATTERY_VOLTAGE) * 10;
 
 		ret_msg->fgd_data_len += sizeof(vbat);
 		memcpy(ret_msg->fgd_data, &vbat, sizeof(vbat));
@@ -4055,7 +4090,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		rcv = &msg->fgd_data[0];
 		prcv = (struct fgd_cmd_param_t_4 *)rcv;
 		memcpy(&param, prcv->input, sizeof(struct fgd_cmd_param_t_8));
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		gm->prev_batt_fcc = param.data[4];
+		gm->prev_batt_remaining_capacity = param.data[4] /10 * param.data[6] / 10000;
+#endif /* OPLUS_FEATURE_CHG_BASIC */
 		bm_err("[fr] FG_DAEMON_CMD_SET_BATTERY_CAPACITY = %d %d %d %d %d %d %d %d %d %d RM:%d\n",
 				param.data[0],
 				param.data[1],
@@ -4522,7 +4560,6 @@ static int nafg_irq_handler(struct mtk_battery *gm)
 	else
 		vbat = gauge_get_int_property(GAUGE_PROP_BATTERY_VOLTAGE);
 
-
 	bm_err(
 		"[%s][cnt:%d dltv:%d cdltv:%d cdltvt:%d zcv:%d vbat:%d]\n",
 		__func__,
@@ -4863,8 +4900,10 @@ int wakeup_fg_daemon(unsigned int flow_state, int cmd, int para1)
 			if (size > PAGE_SIZE)
 				fgd_msg = vmalloc(size);
 
-			if (fgd_msg == NULL)
+			if (fgd_msg == NULL) {
+				bm_err(" %s: request memory fail !!\n", __func__);
 				return -1;
+			}
 		}
 		Intr_Number_to_Name(intr_name, flow_state);
 
@@ -4882,9 +4921,10 @@ int wakeup_fg_daemon(unsigned int flow_state, int cmd, int para1)
 		kvfree(fgd_msg);
 
 		return 0;
-	} else
+	} else {
+		bm_err(" %s: gm->fgd_pid exception, valule is %d !!\n", __func__, gm->fgd_pid);
 		return -1;
-
+	}
 }
 
 void fg_drv_update_daemon(struct mtk_battery *gm)
@@ -5019,8 +5059,10 @@ int mtk_battery_daemon_init(struct platform_device *pdev)
 	gauge = dev_get_drvdata(&pdev->dev);
 	gm = gauge->gm;
 
-	if (is_daemon_support(gm) == false)
+	if (is_daemon_support(gm) == false) {
+		bm_err(" %s: daemon not support !!\n", __func__);
 		return -EIO;
+	}
 
 	if (gm->mtk_battery_sk == NULL) {
 		bm_err("[%s]netlink_kernel_create error\n", __func__);

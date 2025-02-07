@@ -15,13 +15,21 @@ struct CcuMemHandle ccu_buffer_handle[2];
 int ccu_allocate_mem(struct ccu_device_s *dev, struct CcuMemHandle *memHandle,
 			 int size, bool cached)
 {
-	LOG_DBG("size(%d) cached(%d) memHandle->ionHandleKd(%d)\n",
-			 size, cached, memHandle->ionHandleKd);
-	// get buffer virtual address
-	memHandle->meminfo.size = size;
-	memHandle->meminfo.cached = cached;
+	int ssize = size << 1;
+	dma_addr_t dsize = size;
 
-	memHandle->meminfo.va = dma_alloc_attrs(dev->dev, size,
+	if (dev == NULL)
+		return -1;
+
+	if (memHandle == NULL)
+		return -2;
+
+	LOG_DBG("size(%d) cached(%d)\n", ssize, cached);
+	// get buffer virtual address
+	memHandle->meminfo.size = ssize;
+	memHandle->meminfo.cached = (cached) ? 1 : 0;
+
+	memHandle->meminfo.va = dma_alloc_attrs(dev->dev, ssize,
 		&memHandle->mva, GFP_KERNEL, DMA_ATTR_WRITE_COMBINE);
 
 	if (memHandle->meminfo.va == NULL) {
@@ -29,12 +37,15 @@ int ccu_allocate_mem(struct ccu_device_s *dev, struct CcuMemHandle *memHandle,
 		return -1;
 	}
 
-	LOG_DBG("memHandle->ionHandleKd(%d)\n", memHandle->ionHandleKd);
-	LOG_DBG("success: ionHandleKd(%d), share_fd(%d), size(%x), cached(%d), va(%lx), mva(%lx)\n",
-	memHandle->ionHandleKd, memHandle->meminfo.shareFd, memHandle->meminfo.size,
-	memHandle->meminfo.cached, memHandle->meminfo.va, memHandle->mva);
+	memHandle->align_mva = (memHandle->mva + (dsize - 1)) & ~(dsize - 1);
+
+	LOG_DBG("success: share_fd(%d), size(%x), cached(%d), va(%lx), mva(%lx) align_mva(%lx)\n",
+	memHandle->meminfo.shareFd, memHandle->meminfo.size,
+	memHandle->meminfo.cached, memHandle->meminfo.va, memHandle->mva,
+	memHandle->align_mva);
 
 	memHandle->meminfo.mva = (uint32_t)memHandle->mva;
+	memHandle->meminfo.align_mva = (uint32_t)memHandle->align_mva;
 
 	ccu_buffer_handle[memHandle->meminfo.cached] = *memHandle;
 
@@ -43,7 +54,15 @@ int ccu_allocate_mem(struct ccu_device_s *dev, struct CcuMemHandle *memHandle,
 
 int ccu_deallocate_mem(struct ccu_device_s *dev, struct CcuMemHandle *memHandle)
 {
-	struct CcuMemHandle *handle = &ccu_buffer_handle[memHandle->meminfo.cached];
+	struct CcuMemHandle *handle;
+
+	if (dev == NULL)
+		return -1;
+
+	if (memHandle == NULL)
+		return -2;
+
+	handle = &ccu_buffer_handle[(memHandle->meminfo.cached) ? 1 : 0];
 
 	if (handle->meminfo.va != NULL) {
 		dma_free_attrs(dev->dev, handle->meminfo.size,

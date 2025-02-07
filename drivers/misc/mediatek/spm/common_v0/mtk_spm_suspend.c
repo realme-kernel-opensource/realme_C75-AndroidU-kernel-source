@@ -57,12 +57,6 @@ u8 spm_snapshot_golden_setting;
 struct wake_status spm_wakesta; /* record last wakesta */
 unsigned int spm_sleep_count;
 
-int __attribute__ ((weak)) mtk_enter_idle_state(int idx)
-{
-	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
-	return -1;
-}
-
 int __attribute__ ((weak)) vcorefs_get_curr_ddr(void)
 {
 	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
@@ -74,6 +68,17 @@ int  __attribute__ ((weak)) vcorefs_get_curr_vcore(void)
 	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 	return -1;
 }
+
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
+static void (*print_scp_ipi_id_callback)(void);
+
+void spm_set_scp_ipi_id_cb(void (*scp_callback)(void))
+{
+	pr_info("scp register spm call back!\n");
+	print_scp_ipi_id_callback = scp_callback;
+}
+EXPORT_SYMBOL(spm_set_scp_ipi_id_cb);
+#endif
 
 static u32 suspend_pcm_flags = {
 	/* SPM_FLAG_DIS_CPU_PDN | */
@@ -216,7 +221,7 @@ static void spm_trigger_wfi_for_sleep(struct pwr_ctrl *pwrctrl)
 			, spm_dormant_sta);
 	}
 
-#if !IS_ENABLED(SECURE_SERIAL_8250)
+#if !defined(SECURE_SERIAL_8250)
 	if (is_infra_pdn(pwrctrl->pcm_flags))
 		mtk8250_restore_dev();
 #endif
@@ -303,8 +308,10 @@ static unsigned int spm_output_wake_reason(struct wake_status *wakesta)
 #endif
 
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
-	if (wakesta->r12 & R12_SCP_SPM_IRQ_B)
-		mt_print_scp_ipi_id();
+	if (wakesta->r12 & R12_SCP_SPM_IRQ_B) {
+		if (print_scp_ipi_id_callback)
+			print_scp_ipi_id_callback();
+	}
 #endif
 
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
@@ -430,7 +437,7 @@ unsigned int spm_go_to_sleep(void)
 
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
 #if IS_ENABLED(CONFIG_MTK_PMIC) || IS_ENABLED(CONFIG_MTK_PMIC_NEW_ARCH)
-#if !IS_ENABLED(DISABLE_DLPT_FEATURE)
+#if !defined(DISABLE_DLPT_FEATURE)
 	get_dlpt_imix_spm();
 #endif
 #endif
@@ -478,7 +485,7 @@ unsigned int spm_go_to_sleep(void)
 
 	spm_suspend_footprint(SPM_SUSPEND_ENTER_UART_SLEEP);
 
-#if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING) && !IS_ENABLED(SECURE_SERIAL_8250)
+#if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING) && !defined(SECURE_SERIAL_8250)
 	if (mtk8250_request_to_sleep()) {
 		last_wr = WR_UART_BUSY;
 		printk_deferred("[name:spm&]Fail to request uart sleep\n");
@@ -492,7 +499,7 @@ unsigned int spm_go_to_sleep(void)
 
 	spm_suspend_footprint(SPM_SUSPEND_LEAVE_WFI);
 
-#if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING) && !IS_ENABLED(SECURE_SERIAL_8250)
+#if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING) && !defined(SECURE_SERIAL_8250)
 	mtk8250_request_to_wakeup();
 RESTORE_IRQ:
 #endif
@@ -561,7 +568,5 @@ int  spm_logger_init(void)
 
 	return 0;
 }
-
-//late_initcall_sync(spm_logger_init);
 
 MODULE_DESCRIPTION("SPM-Sleep Driver v0.1");

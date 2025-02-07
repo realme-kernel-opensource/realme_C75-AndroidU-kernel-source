@@ -56,21 +56,13 @@ static struct icc_path *path_mdp_rdma0[MDP_TOTAL_THREAD];
 static struct icc_path *path_mdp_wrot0[MDP_TOTAL_THREAD];
 static struct icc_path *path_mdp_wdma[MDP_TOTAL_THREAD];
 
-/* isp can be ignored GKI2.0 because isp did not attend */
-/*
- * static struct icc_path *path_imgi[MDP_TOTAL_THREAD];
- * static struct icc_path *path_imgci[MDP_TOTAL_THREAD];
- * static struct icc_path *path_ufdi[MDP_TOTAL_THREAD];
- * static struct icc_path *path_ufocw[MDP_TOTAL_THREAD];
- * static struct icc_path *path_lci[MDP_TOTAL_THREAD];
- * static struct icc_path *path_dmgi[MDP_TOTAL_THREAD];
- * static struct icc_path *path_ufoc2r[MDP_TOTAL_THREAD];
- * static struct icc_path *path_crzo[MDP_TOTAL_THREAD];
- * static struct icc_path *path_ufoyw[MDP_TOTAL_THREAD];
- * static struct icc_path *path_smti1[MDP_TOTAL_THREAD];
- * static struct icc_path *path_smto1[MDP_TOTAL_THREAD];
- * static struct icc_path *path_smto2[MDP_TOTAL_THREAD];
- */
+/* isp */
+static struct icc_path *path_img_imgi[MDP_TOTAL_THREAD];
+static struct icc_path *path_img_imgo[MDP_TOTAL_THREAD];
+static struct icc_path *path_img_img2o[MDP_TOTAL_THREAD];
+static struct icc_path *path_img_img3o[MDP_TOTAL_THREAD];
+static struct icc_path *path_img_vipi[MDP_TOTAL_THREAD];
+static struct icc_path *path_img_lcei[MDP_TOTAL_THREAD];
 
 #include "cmdq_device.h"
 struct CmdqMdpModuleBaseVA {
@@ -1221,6 +1213,25 @@ u64 cmdq_mdp_get_secure_engine(u64 engine_flags)
 {
 	u64 sec_eng_flag = 0;
 
+	/* MDP engines */
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, MDP_RDMA0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, MDP_RDMA1);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, MDP_WDMA);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, MDP_WROT0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, MDP_WROT1);
+
+	/* DISP engines */
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_RDMA0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_RDMA1);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_WDMA0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_WDMA1);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_OVL0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_OVL1);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_OVL2);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_2L_OVL0);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_2L_OVL1);
+	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, DISP_2L_OVL2);
+
 	/* ISP */
 	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, ISP_IMGI);
 	CMDQ_ENGINE_TRANS(engine_flags, sec_eng_flag, ISP_VIPI);
@@ -1263,6 +1274,12 @@ static void mdp_qos_init(struct platform_device *pdev, u32 thread_id)
 	MDP_ICC_GET(mdp_rdma0);
 	MDP_ICC_GET(mdp_wrot0);
 	MDP_ICC_GET(mdp_wdma);
+	MDP_ICC_GET(img_imgi);
+	MDP_ICC_GET(img_imgo);
+	MDP_ICC_GET(img_img2o);
+	MDP_ICC_GET(img_img3o);
+	MDP_ICC_GET(img_vipi);
+	MDP_ICC_GET(img_lcei);
 }
 
 static void *mdp_qos_get_path(u32 thread_id, u32 port)
@@ -1280,6 +1297,29 @@ static void *mdp_qos_get_path(u32 thread_id, u32 port)
 		return path_mdp_wdma[thread_id];
 	}
 
+	/* userspace translate engineType about qos2_isp_init to
+	 * kernelspace, So kernelspace need translate it to M4U
+	 * port ID for getting icc path which can be used
+	 */
+
+	port = port | (2 << 5);
+
+	switch (port) {
+	/* isp part */
+	case M4U_PORT_CAM_IMGI:
+		return path_img_imgi[thread_id];
+	case M4U_PORT_CAM_IMGO:
+		return path_img_imgo[thread_id];
+	case M4U_PORT_CAM_IMG2O:
+		return path_img_img2o[thread_id];
+	case M4U_PORT_CAM_IMG3O:
+		return path_img_img3o[thread_id];
+	case M4U_PORT_CAM_VIPI:
+		return path_img_vipi[thread_id];
+	case M4U_PORT_CAM_LCEI:
+		return path_img_lcei[thread_id];
+	}
+
 	CMDQ_ERR("%s pmqos invalid port %d\n", __func__, port);
 	return NULL;
 }
@@ -1293,7 +1333,12 @@ static void mdp_qos_clear_all(u32 thread_id)
 
 static void mdp_qos_clear_all_isp(u32 thread_id)
 {
-	/* TO DO */
+	mtk_icc_set_bw(path_img_imgi[thread_id], 0, 0);
+	mtk_icc_set_bw(path_img_imgo[thread_id], 0, 0);
+	mtk_icc_set_bw(path_img_img2o[thread_id], 0, 0);
+	mtk_icc_set_bw(path_img_img3o[thread_id], 0, 0);
+	mtk_icc_set_bw(path_img_vipi[thread_id], 0, 0);
+	mtk_icc_set_bw(path_img_lcei[thread_id], 0, 0);
 }
 
 static u32 mdp_get_group_max(void)
@@ -1355,14 +1400,12 @@ static s32 mdp_get_rdma_idx(u32 eng_base)
 
 static bool mdp_check_camin_support_virtual(void)
 {
-	/* Camera not attend GKI2.0 about mt6768 */
-	return false;
+	return true;
 }
 
 static bool mdp_svp_support_meta_data(void)
 {
-	/* early GKI2.0 about mt6768 not support secure */
-	return false;
+	return true;
 }
 
 void cmdq_mdp_platform_function_setting(void)
@@ -1423,6 +1466,7 @@ void cmdq_mdp_platform_function_setting(void)
 	/* feature support about mdp */
 	pFunc->mdpIsCaminSupport = mdp_check_camin_support_virtual;
 	pFunc->mdpSvpSupportMetaData = mdp_svp_support_meta_data;
+	pFunc->cmdqMdpSetResourceCallback = cmdq_mdp_set_resource_callback;
 
 }
 MODULE_LICENSE("GPL");

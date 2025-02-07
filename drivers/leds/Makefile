@@ -115,5 +115,14 @@ obj-$(CONFIG_LEDS_SPI_BYTE)		+= leds-spi-byte.o
 # LED Userspace Drivers
 obj-$(CONFIG_LEDS_USER)			+= uleds.o
 
+# Flash and Torch LED Drivers
+obj-$(CONFIG_LEDS_CLASS_FLASH)          += flash/
+
+# RGB LED Drivers
+obj-$(CONFIG_LEDS_CLASS_MULTICOLOR)     += rgb/
+
 # LED Triggers
 obj-$(CONFIG_LEDS_TRIGGERS)		+= trigger/
+
+# aw210xx led
+obj-$(CONFIG_LEDS_AW210XX) += aw210xx/

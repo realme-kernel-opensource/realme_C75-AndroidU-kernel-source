@@ -147,39 +147,31 @@ void mtk_cam_seninf_get_vcinfo_test(struct seninf_ctx *ctx)
 		vc->out_pad = PAD_SRC_PDAF0;
 		vc->group = 0;
 	} else if (ctx->is_test_model == 4) {
-		vc = &vcinfo->vc[vcinfo->cnt++];
+		vc = &vcinfo->vc[vcinfo->cnt++];/*0*/
 		vc->vc = 0;
 		vc->dt = 0x2b;
 		vc->feature = VC_RAW_DATA;
 		vc->out_pad = PAD_SRC_RAW0;
+		vc->exp_hsize = 4000;
+		vc->exp_vsize = 3000;
 		vc->group = 0;
 
-		vc = &vcinfo->vc[vcinfo->cnt++];
+		vc = &vcinfo->vc[vcinfo->cnt++];/*1*/
 		vc->vc = 0;
 		vc->dt = 0x2b;
-		vc->feature = VC_RAW_DATA;
-		vc->out_pad = PAD_SRC_RAW1;
+		vc->feature = VC_GENERAL_EMBEDDED;
+		vc->out_pad = PAD_SRC_GENERAL0;
+		vc->exp_hsize = 1024;
+		vc->exp_vsize = 552;
 		vc->group = 0;
 
-		vc = &vcinfo->vc[vcinfo->cnt++];
+		vc = &vcinfo->vc[vcinfo->cnt++];/*2*/
 		vc->vc = 0;
 		vc->dt = 0x2b;
-		vc->feature = VC_RAW_DATA;
-		vc->out_pad = PAD_SRC_RAW2;
-		vc->group = 0;
-
-		vc = &vcinfo->vc[vcinfo->cnt++];
-		vc->vc = 0;
-		vc->dt = 0x2b;
-		vc->feature = VC_RAW_DATA;
-		vc->out_pad = PAD_SRC_PDAF0;
-		vc->group = 0;
-
-		vc = &vcinfo->vc[vcinfo->cnt++];
-		vc->vc = 0;
-		vc->dt = 0x2b;
-		vc->feature = VC_RAW_DATA;
-		vc->out_pad = PAD_SRC_PDAF1;
+		vc->feature = VC_RAW_PROCESSED_DATA;
+		vc->out_pad = PAD_SRC_RAW_EXT0;
+		vc->exp_hsize = 4000;
+		vc->exp_vsize = 3000;
 		vc->group = 0;
 	} else if (ctx->is_test_model == 5) {
 		vc = &vcinfo->vc[vcinfo->cnt++];
@@ -515,6 +507,9 @@ int mtk_cam_seninf_get_vcinfo(struct seninf_ctx *ctx)
 		vc->vc = fd.entry[i].bus.csi2.channel;
 		vc->dt = fd.entry[i].bus.csi2.data_type;
 		desc = fd.entry[i].bus.csi2.user_data_desc;
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		vc->dt_remap_to_type = fd.entry[i].bus.csi2.dt_remap_to_type;
+		#endif
 
 		switch (desc) {
 		case VC_3HDR_Y:
@@ -749,7 +744,7 @@ int mtk_cam_seninf_get_vcinfo(struct seninf_ctx *ctx)
 
 	return 0;
 }
-#endif
+#endif // SENINF_VC_ROUTING
 
 #ifndef SENINF_VC_ROUTING
 int mtk_cam_seninf_get_vcinfo(struct seninf_ctx *ctx)
@@ -958,7 +953,7 @@ int _mtk_cam_seninf_set_camtg(struct v4l2_subdev *sd,
 			dev_info(ctx->dev, "Sensor kernel ca_checkpipe");
 			seninf_ca_checkpipe(ctx->SecInfo_addr);
 		} else {
-#endif
+#endif // SENSOR_SECURE_MTEE_SUPPORT
 			if (camtg == 0xff) {
 				old_camtg = vc->cam;
 				vc->cam = 0xff;
@@ -1018,7 +1013,7 @@ int mtk_cam_seninf_set_camtg(struct v4l2_subdev *sd, int pad_id, int camtg)
 	return _mtk_cam_seninf_set_camtg(sd, pad_id, camtg, true);
 }
 
-static int mtk_cam_seninf_get_raw_cam_info(struct seninf_ctx *ctx)
+static int mtk_cam_seninf_get_fsync_vsync_src_cam_info(struct seninf_ctx *ctx)
 {
 	struct seninf_vcinfo *vcinfo = &ctx->vcinfo;
 	struct seninf_vc *vc;
@@ -1172,7 +1167,6 @@ mtk_cam_seninf_sof_notify(struct mtk_seninf_sof_notify_param *param)
 //		param->sof_cnt);
 	v4l2_ctrl_s_ctrl(ctrl, param->sof_cnt);
 
-
 	if (ctx->streaming) {
 		seninf_work = kmalloc(sizeof(struct mtk_seninf_work),
 				GFP_ATOMIC);
@@ -1219,7 +1213,7 @@ int reset_sensor(struct seninf_ctx *ctx)
 
 int notify_fsync_cammux_usage(struct seninf_ctx *ctx)
 {
-	int cam_idx = mtk_cam_seninf_get_raw_cam_info(ctx);
+	int cam_idx = mtk_cam_seninf_get_fsync_vsync_src_cam_info(ctx);
 	struct v4l2_subdev *sensor_sd = ctx->sensor_sd;
 	struct v4l2_ctrl *ctrl;
 

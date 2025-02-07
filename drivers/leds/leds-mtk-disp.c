@@ -15,6 +15,14 @@
 
 extern int __attribute__ ((weak)) mtk_drm_gateic_set_backlight(unsigned int level, char func);
 extern int __attribute__ ((weak)) _gate_ic_backlight_set(unsigned int brightness);
+#if IS_ENABLED(CONFIG_DRM_PANEL_OPLUS22921_NOVATEK_NT36532W_VDO_144HZ)
+extern int __attribute__ ((weak)) oplus_i2c_set_backlight(unsigned int level);
+#else
+int __attribute__ ((weak)) oplus_i2c_set_backlight(unsigned int level)
+{
+	return 0;
+}
+#endif
 
 #undef pr_fmt
 #define pr_fmt(fmt) KBUILD_MODNAME " %s(%d) :" fmt"\n", __func__, __LINE__
@@ -121,7 +129,7 @@ static int __maybe_unused led_disp_set(struct mt_led_data *mdev,
 		       int brightness)
 {
 	pr_debug("set brightness %d", brightness);
-	return mtkfb_set_backlight_level(brightness);
+	return mtk_drm_set_conn_backlight_level(mdev->conf.connector_id, brightness);
 }
 
 static int __maybe_unused led_disp_conn_set(struct mt_led_data *mdev,
@@ -149,8 +157,8 @@ static int __maybe_unused led_i2c_set(struct mt_led_data *mdev,
 static int __maybe_unused led_set_virtual(struct mt_led_data *mdev,
 		       int brightness)
 {
-	pr_debug("set brightness %d return, no need", brightness);
-	return 0;
+	pr_debug("set brightness %d ", brightness);
+	return oplus_i2c_set_backlight(brightness);
 }
 
 static const struct of_device_id of_disp_leds_match[] = {

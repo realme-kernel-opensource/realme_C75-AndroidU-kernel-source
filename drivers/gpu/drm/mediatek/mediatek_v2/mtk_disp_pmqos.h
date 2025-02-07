@@ -40,6 +40,7 @@ void __mtk_disp_set_module_hrt(struct icc_path *request,
 			       unsigned int bandwidth);
 int mtk_disp_set_hrt_bw(struct mtk_drm_crtc *mtk_crtc,
 			unsigned int overlap_num);
+void mtk_disp_hrt_mmclk_request_release(struct mtk_drm_crtc *mtk_crtc);
 void mtk_drm_pan_disp_set_hrt_bw(struct drm_crtc *crtc, const char *caller);
 int __mtk_disp_pmqos_slot_look_up(int comp_id, int mode);
 int mtk_disp_hrt_cond_init(struct drm_crtc *crtc);

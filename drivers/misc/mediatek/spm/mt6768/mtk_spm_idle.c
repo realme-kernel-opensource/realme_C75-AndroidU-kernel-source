@@ -10,8 +10,8 @@
 #include <mtk_spm_internal.h>
 #include <mt-plat/mtk_ccci_common.h> /* exec_ccci_kern_func_by_md_id */
 //#include <mt-plat/mtk_wd_api.h> /* ap wdt related definitons */
-
-//#include <trace/events/mtk_idle_event.h>
+#define CREATE_TRACE_POINTS
+#include <mtk_idle_event.h>
 
 #include <mtk_idle.h>
 #include <mtk_idle_internal.h>
@@ -29,8 +29,9 @@
 
 #if defined(MTK_IDLE_GS_DUMP_READY)
 /* NOTE: Check golden setting dump header file for each project */
-//#include "power_gs_v1/mtk_power_gs_internal.h"
+#include <mtk_power_gs_internal.h>
 #endif
+
 
 /* FIXME: IT with vcorefs ? */
 void __attribute__((weak)) dvfsrc_md_scenario_update(bool suspend) {}
@@ -101,15 +102,10 @@ static struct pwr_ctrl *get_pwrctrl[IDLE_MODEL_NUM] = {
 static void mtk_idle_gs_dump(int idle_type)
 {
 	#if defined(MTK_IDLE_GS_DUMP_READY)
-	if (idle_type == IDLE_MODEL_SYSPLL) {
-	#ifdef UNGKI
-		//mt_power_gs_dump_dpidle(GS_ALL);
-	#endif
-	} else if (idle_type == IDLE_MODEL_BUS26M || idle_type == IDLE_MODEL_DRAM) {
-	#ifdef UNGKI
-		//mt_power_gs_dump_sodi3(GS_ALL);
-	#endif
-	}
+	if (idle_type == IDLE_MODEL_SYSPLL)
+		mt_power_gs_dump_dpidle(GS_ALL);
+	else if (idle_type == IDLE_MODEL_BUS26M || idle_type == IDLE_MODEL_DRAM)
+		mt_power_gs_dump_sodi3(GS_ALL);
 	#endif
 }
 
@@ -122,13 +118,13 @@ static void print_ftrace_tag(int idle_type, int cpu, int enter)
 #if MTK_IDLE_TRACE_TAG_ENABLE
 	switch (idle_type) {
 	case IDLE_MODEL_BUS26M:
-		//trace_sodi3_rcuidle(cpu, enter);
+		trace_sodi3(cpu, enter);
 		break;
 	case IDLE_MODEL_SYSPLL:
-		//trace_dpidle_rcuidle(cpu, enter);
+		trace_dpidle(cpu, enter);
 		break;
 	case IDLE_MODEL_DRAM:
-		//trace_sodi_rcuidle(cpu, enter);
+		trace_sodi(cpu, enter);
 		break;
 	default:
 		break;

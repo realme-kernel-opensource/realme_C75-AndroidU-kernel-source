@@ -16,6 +16,10 @@
 #include "mtk-cmdq-ext.h"
 #endif
 
+/*#ifdef OPLUS_BUG_STABILITY*/
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+/*#endif*/
+
 #include "mtk_drm_ddp.h"
 #include "mtk_drm_crtc.h"
 #include "mtk_drm_drv.h"
@@ -24,12 +28,18 @@
 #include "mtk_drm_mmp.h"
 #include "mtk_disp_aal.h"
 #include "mtk_disp_c3d.h"
+// #ifdef OPLUS_BUG_STABILITY
+#include "mtk_disp_ccorr.h"
+// #endif OPLUS_BUG_STABILITY
 #include "mtk_disp_gamma.h"
 #include "platform/mtk_drm_6789.h"
 #ifdef CONFIG_MTK_SMI_EXT
 #include "smi_public.h"
 #endif
-
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "mtk_drm_trace.h"
+extern int g_commit_pid;
+#endif /* OPLUS_FEATURE_DISPLAY */
 #define DISP_REG_OVL0_MOUT_EN(data) (data->ovl0_mout_en)
 #define DISP_REG_DPI0_SEL_IN(data) (data->dpi0_sel_in)
 #define DISP_REG_DPI0_SEL_IN_RDMA1(data) (data->dpi0_sel_in_rdma1)
@@ -536,7 +546,6 @@
 
 #define MT6983_DISP_MDP_ALL0_SEL_IN	0xF4C
 	#define DISP_MDP_ALL0_SEL_IN_FROM_DISP_C3D0_SOUT_SEL	0x1
-
 #define MT6983_DISP_MERGE0_L_SEL_IN 0xF60
 	#define DISP_MERGE0_L_SEL_IN_FROM_DISP_TV0_SOUT_SEL	0x1
 
@@ -2939,7 +2948,8 @@ static const unsigned int mt6765_mutex_sof[DDP_MUTEX_SOF_MAX] = {
 };
 
 static const unsigned int mt6768_mutex_sof[DDP_MUTEX_SOF_MAX] = {
-		[DDP_MUTEX_SOF_SINGLE_MODE] = MT6768_MUTEX_SOF_SINGLE_MODE,
+		[DDP_MUTEX_SOF_SINGLE_MODE] =
+			MT6768_MUTEX_SOF_SINGLE_MODE | MT6768_MUTEX_EOF_DSI0,
 		[DDP_MUTEX_SOF_DSI0] =
 			MT6768_MUTEX_SOF_DSI0 | MT6768_MUTEX_EOF_DSI0,
 };
@@ -11084,10 +11094,8 @@ void mtk_ddp_add_comp_to_path(struct mtk_drm_crtc *mtk_crtc,
 
 	case MMSYS_MT6768:
 		value = mtk_ddp_mout_en_MT6768(reg_data, cur, next, &addr);
-		if (value >= 0) {
-			reg = readl_relaxed(config_regs + addr) | value;
-			writel_relaxed(reg, config_regs + addr);
-		}
+		if (value >= 0)
+			writel_relaxed(value, config_regs + addr);
 
 		value = mtk_ddp_sout_sel_MT6768(reg_data, cur, next, &addr);
 		if (value >= 0)
@@ -11419,6 +11427,8 @@ void mtk_ddp_add_comp_to_path_with_cmdq(struct mtk_drm_crtc *mtk_crtc,
 		break;
 
 	case MMSYS_MT6765:
+		if (priv->ddp_comp[DDP_COMPONENT_OVL0]->blank_mode)
+			break;
 		value = mtk_ddp_mout_en_MT6765(mtk_crtc->mmsys_reg_data,
 				cur, next, &addr);
 		if (value >= 0)
@@ -11443,12 +11453,14 @@ void mtk_ddp_add_comp_to_path_with_cmdq(struct mtk_drm_crtc *mtk_crtc,
 		break;
 
 	case MMSYS_MT6768:
+		if (priv->ddp_comp[DDP_COMPONENT_OVL0]->blank_mode)
+			break;
 		value = mtk_ddp_mout_en_MT6768(mtk_crtc->mmsys_reg_data,
 				cur, next, &addr);
 		if (value >= 0)
 			cmdq_pkt_write(handle, mtk_crtc->gce_obj.base,
 				mtk_crtc->config_regs_pa
-				+ addr, value, value);
+				+ addr, value, ~0);
 
 		value = mtk_ddp_sout_sel_MT6768(mtk_crtc->mmsys_reg_data,
 				cur, next, &addr);
@@ -11678,10 +11690,8 @@ void mtk_ddp_remove_comp_from_path(struct mtk_drm_crtc *mtk_crtc,
 
 	case MMSYS_MT6768:
 		value = mtk_ddp_mout_en_MT6768(reg_data, cur, next, &addr);
-		if (value >= 0) {
-			reg = readl_relaxed(config_regs + addr) & ~(unsigned int)value;
-			writel_relaxed(reg, config_regs + addr);
-		}
+		if (value >= 0)
+			writel_relaxed(value, config_regs + addr);
 
 		break;
 
@@ -11847,6 +11857,8 @@ void mtk_ddp_remove_comp_from_path_with_cmdq(struct mtk_drm_crtc *mtk_crtc,
 		break;
 
 	case MMSYS_MT6765:
+		if (priv->ddp_comp[DDP_COMPONENT_OVL0]->blank_mode)
+			break;
 		value = mtk_ddp_mout_en_MT6765(mtk_crtc->mmsys_reg_data,
 					cur, next, &addr);
 		if (value >= 0)
@@ -11856,11 +11868,13 @@ void mtk_ddp_remove_comp_from_path_with_cmdq(struct mtk_drm_crtc *mtk_crtc,
 		break;
 
 	case MMSYS_MT6768:
+		if (priv->ddp_comp[DDP_COMPONENT_OVL0]->blank_mode)
+			break;
 		value = mtk_ddp_mout_en_MT6768(mtk_crtc->mmsys_reg_data,
 					cur, next, &addr);
 		if (value >= 0)
 			cmdq_pkt_write(handle, mtk_crtc->gce_obj.base,
-				       mtk_crtc->config_regs_pa + addr, ~value, value);
+				       mtk_crtc->config_regs_pa + addr, ~value, ~0);
 
 		break;
 
@@ -13062,9 +13076,8 @@ void mtk_ddp_connect_dual_pipe_path(struct mtk_drm_crtc *mtk_crtc,
 	    output_comp && mtk_ddp_comp_get_type(output_comp->id) == MTK_DP_INTF) {
 		/* can't use DSC1 when panel use 2dsc 4lice */
 		//to do: dp in 6983 4k60 can use merge, only 8k30 must use dsc
-		if (drm_mode_vrefresh(&(&mtk_crtc->base)->state->adjusted_mode) == 60 ||
-		    (priv->ddp_comp[DDP_COMPONENT_DSC0]->mtk_crtc != mtk_crtc &&
-		     priv->ddp_comp[DDP_COMPONENT_DSC1]->mtk_crtc != mtk_crtc))
+		if (drm_mode_vrefresh(&(&mtk_crtc->base)->state->adjusted_mode) == 60 &&
+		     priv->ddp_comp[DDP_COMPONENT_DSC1]->mtk_crtc == mtk_crtc)
 			mtk_ddp_ext_dual_pipe_dsc(mtk_crtc, mutex);
 		else
 			mtk_ddp_ext_insert_dual_pipe(mtk_crtc, mutex);
@@ -13715,6 +13728,9 @@ void mtk_disp_mutex_submit_sof(struct mtk_disp_mutex *mutex)
 	}
 }
 
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+unsigned long long mutex_sof_ns = 0;
+#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 {
 	struct mtk_ddp *ddp = dev_id;
@@ -13746,6 +13762,10 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 	for (m_id = 0; m_id < DISP_MUTEX_DDP_COUNT; m_id++) {
 		if (val & (0x1 << (m_id + DISP_MUTEX_TOTAL))) {
 			DDPIRQ("[IRQ] mutex%d eof!\n", m_id);
+#ifdef OPLUS_FEATURE_DISPLAY
+			mtk_drm_trace_c("%d|smutex eof|%d", g_commit_pid, 1);
+			mtk_drm_trace_c("%d|smutex eof|%d", g_commit_pid, 0);
+#endif /* OPLUS_FEATURE_DISPLAY */
 			DRM_MMP_MARK(mutex[m_id], val, 1);
 #ifndef DRM_BYPASS_PQ
 			irq_debug[1] = sched_clock();
@@ -13756,6 +13776,13 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 		if (val & (0x1 << m_id)) {
 			DDPIRQ("[IRQ] mutex%d sof!\n", m_id);
 			DRM_MMP_MARK(mutex[m_id], val, 0);
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+			mutex_sof_ns = ktime_get();
+#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
+#ifdef OPLUS_FEATURE_DISPLAY
+			mtk_drm_trace_c("%d|smutex sof|%d", g_commit_pid, 1);
+			mtk_drm_trace_c("%d|smutex sof|%d", g_commit_pid, 0);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 			if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
 				irq_debug[3] = sched_clock();
@@ -13772,6 +13799,10 @@ static irqreturn_t mtk_disp_mutex_irq_handler(int irq, void *dev_id)
 			disp_gamma_on_start_of_frame();
 			irq_debug[8] = sched_clock();
 #endif
+
+#ifdef OPLUS_SILKY_ON_START_FRAME
+			disp_ccorr_on_start_of_frame();
+#endif //OPLUS_SILKY_ON_START_FRAME
 		}
 	}
 
@@ -16490,6 +16521,9 @@ SKIP_SIDE_DISP:
 		DDPAEE("%s:%d, failed to request irq:%d ret:%d\n",
 				__func__, __LINE__,
 				irq, ret);
+		/*#ifdef OPLUS_BUG_STABILITY*/
+		mm_fb_display_kevent("DisplayDriverID@@504$$", MM_FB_KEY_RATELIMIT_1H, "mtk_ddp_probe failed to request irq:%d ret:%d", irq, ret);
+		/*#endif*/
 		return ret;
 	}
 

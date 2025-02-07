@@ -289,7 +289,6 @@ static int _sensor_reset_s_stream(struct v4l2_ctrl *ctrl)
 	struct adaptor_ctx *ctx = ctrl_to_ctx(ctrl);
 	u64 data[4];
 	u32 len;
-
 	//dev_info(ctx->dev, "%s val: %d, stream_off_state: %d\n",
 	//	 __func__, ctrl->val,
 	//	 ctx->is_sensor_reset_stream_off);
@@ -412,7 +411,7 @@ static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sens
 
 			ctrl->val = tmp / 1000;
 		}
-		dev_info(ctx->dev, "[%s] sof timeout value in us %d|%llu|%d|%d\n",
+		dev_info(ctx->dev, "[%s] sof timeout value %d|%llu|%d|%d\n",
 			__func__,
 			ctx->shutter_for_timeout,
 			mode->linetime_in_ns,
@@ -688,7 +687,7 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		{
 			struct mtk_hdr_ae *ae_ctrl = ctrl->p_new.p;
 
-			ADAPTOR_SYSTRACE_BEGIN("SensorWorker::s_ae_ctrl %d %d %d %d %d %d",
+			ADAPTOR_SYSTRACE_BEGIN("SensorWorker::s_ae_ctrl %d %d %d %d %d %ld",
 				ae_ctrl->req_id,
 				ae_ctrl->exposure.le_exposure,
 				ae_ctrl->exposure.me_exposure,
@@ -902,6 +901,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		{
 			struct mtk_seamless_target_scenarios *info = ctrl->p_new.p;
 
+            dev_info(dev, "V4L2_CID_SEAMLESS_SCENARIOS scenario = %u, count = %u\n",
+                info->scenario_id, info->count);
+
 			/* reset seamless_scenarios */
 			for (i = SENSOR_SCENARIO_ID_MIN; i < SENSOR_SCENARIO_ID_MAX; i++)
 				ctx->seamless_scenarios[i] = SENSOR_SCENARIO_ID_NONE;
@@ -1031,7 +1033,6 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 			notify_fsync_mgr_n_1_en(ctx, info->n, info->en);
 		}
 		break;
-
 	case V4L2_CID_MTK_SENSOR_TEST_PATTERN_DATA:
 		//struct mtk_test_pattern_data *info = ctrl->p_new.p;
 
@@ -1061,8 +1062,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 					&sensor_config_data);
 
 			restore_ae_ctrl(ctx);
-			_sensor_reset_s_stream(ctrl);
 			//dev_info(dev, "exit V4L2_CID_MTK_SENSOR_RESET\n");
+			_sensor_reset_s_stream(ctrl);
+			dev_info(dev, "exit V4L2_CID_MTK_SENSOR_RESET\n");
 		}
 		break;
 	case V4L2_CID_MTK_SENSOR_INIT:
@@ -1200,6 +1202,7 @@ static const struct v4l2_ctrl_config cfg_vsync_notify = {
 	.step = 1,
 };
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 static const struct v4l2_ctrl_config cfg_update_sof_cnt = {
 	.ops = &ctrl_ops,
 	.id = V4L2_CID_UPDATE_SOF_CNT,
@@ -1209,6 +1212,7 @@ static const struct v4l2_ctrl_config cfg_update_sof_cnt = {
 	.max = 0x7fffffff,
 	.step = 1,
 };
+#endif
 
 static struct v4l2_ctrl_config cfg_ae_ctrl = {
 	.ops = &ctrl_ops,

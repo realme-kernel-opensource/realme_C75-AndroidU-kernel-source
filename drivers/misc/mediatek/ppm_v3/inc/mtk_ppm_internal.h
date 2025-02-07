@@ -24,11 +24,10 @@ extern "C" {
 #include <linux/topology.h>
 
 #include "mtk_ppm_api.h"
-#if IS_ENABLED(CONFIG_MTK_PLAT_POWER_MT6765)
-#include "mtk_ppm_platform_6765.h"
-#else
+
 #include "mtk_ppm_platform.h"
-#endif
+
+
 #include "mtk_ppm_ipi.h"
 
 /*==============================================================*/
@@ -221,6 +220,8 @@ struct ppm_cluster_info {
 	struct cpufreq_frequency_table *dvfs_tbl;	/* from DVFS driver */
 	int	doe_max;
 	int	doe_min;
+	struct freq_qos_request *max_freq_req;
+	struct freq_qos_request *min_freq_req;
 };
 
 struct ppm_data {
@@ -342,6 +343,7 @@ extern void aee_rr_rec_ppm_step(u8 val);
 extern void aee_rr_rec_ppm_min_pwr_bgt(u32 val);
 extern void aee_rr_rec_ppm_policy_mask(u32 val);
 extern void aee_rr_rec_ppm_waiting_for_pbm(u8 val);
+extern void ppm_init_qos_request(void);
 #endif
 
 #define trace_ppm_update(a, b, c, d) do { } while (0)

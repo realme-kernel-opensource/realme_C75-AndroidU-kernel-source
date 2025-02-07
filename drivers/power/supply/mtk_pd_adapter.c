@@ -41,7 +41,11 @@
 #include <linux/reboot.h>
 
 /* PD */
+#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
+#include "../oplus/pd_ext/inc/tcpm.h"
+#else
 #include <tcpm.h>
+#endif
 #include "adapter_class.h"
 
 #define PHY_MODE_DPDMPULLDOWN_SET 3

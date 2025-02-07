@@ -275,6 +275,7 @@ struct mtk_cam_request_stream_data {
 	struct mtk_cam_req_work seninf_s_fmt_work;
 	struct mtk_cam_req_work frame_work;
 	struct mtk_cam_req_work meta1_done_work;
+	struct mtk_cam_req_work extmeta_done_work;
 	struct mtk_cam_req_work frame_done_work;
 	struct mtk_camsys_ctrl_state state;
 	struct mtk_cam_working_buf_entry *working_buf;
@@ -500,7 +501,6 @@ struct mtk_cam_ctx {
 	struct mutex cleanup_lock;
 
 	struct mtk_cam_hsf_ctrl *hsf;
-
 	/* Watchdog data */
 	spinlock_t watchdog_pipe_lock;
 	unsigned int enabled_watchdog_pipe;

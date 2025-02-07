@@ -1189,7 +1189,6 @@ void mtk_cam_qos_bw_reset(struct mtk_cam_ctx *ctx, unsigned int enabled_sv)
 				mtk_icc_set_bw(dvfs_info->sv_qos_req[qos_port_id], 0, 0);
 		}
 	}
-
 	for (i = 0; i < ctx->used_sv_num; i++) {
 		for (j = 0; j < sv_qos_port_num; j++) {
 			qos_port_id = ((ctx->sv_pipe[i]->id - MTKCAM_SUBDEV_CAMSV_START)

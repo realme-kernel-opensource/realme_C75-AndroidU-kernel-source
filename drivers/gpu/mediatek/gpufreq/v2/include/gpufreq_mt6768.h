@@ -100,7 +100,6 @@ struct gpufreq_core_mask_info g_core_mask_table_6768[] = {
 /**************************************************
  * Reference Power Setting MT6768 TBD
  **************************************************/
-// TODO:GKI
 #define GPU_ACT_REF_POWER			(1285)		/* mW  */
 #define GPU_ACT_REF_FREQ			(900000)	/* KHz */
 #define GPU_ACT_REF_VOLT			(90000)		/* mV x 100 */
@@ -145,17 +144,11 @@ struct gpufreq_core_mask_info g_core_mask_table_6768[] = {
  * SRAMRC Setting
  **************************************************/
 #define GPUFREQ_SAFE_VLOGIC             (60000)
-//TODO:GKI
-#if 0
-#define VSRAM_LEVEL_0                   (75000)
-#define VSRAM_LEVEL_1                   (80000)
-#define SRAM_PARK_VOLT                  (75000)
-#endif
 
 /**************************************************
  * Power Throttling Setting
  **************************************************/
-//TODO:GKI
+//Not support
 #define GPUFREQ_BATT_OC_ENABLE          (0)
 #define GPUFREQ_BATT_PERCENT_ENABLE     (0)
 #define GPUFREQ_LOW_BATT_ENABLE         (0)
@@ -192,17 +185,14 @@ struct g_clk_info {
 	struct clk *clk_main_parent;	/* substitution clock for mfg transient mux setting */
 	struct clk *clk_sub_parent;	/* substitution clock for mfg transient parent setting */
 	struct clk *subsys_mfg_cg;	/* clock gating */
+	struct clk *mtcmos_mfg_async;	/* */
+	struct clk *mtcmos_mfg;		/* dependent on mtcmos_mfg_async */
+	struct clk *mtcmos_mfg_core0;	/* dependent on mtcmos_mfg */
+	struct clk *mtcmos_mfg_core1;	/* dependent on mtcmos_mfg */
 };
 struct g_pmic_info {
 	struct regulator *reg_vgpu;
 	struct regulator *reg_vsram_gpu;
-};
-
-struct gpufreq_mtcmos_info {
-	struct device *pd_mfg;
-	struct device *pd_mfg_async;
-	struct device *pd_mfg_core0;
-	struct device *pd_mfg_core1;
 };
 
 struct gpufreq_adj_info {
@@ -318,5 +308,13 @@ unsigned int g_ptpod_opp_idx_table[] = {
 	16, 18, 20, 23,
 	25, 27, 29, 31
 };
+
+struct mt_gpufreq_power_table_info {
+	unsigned int gpufreq_khz;
+	unsigned int gpufreq_volt;
+	unsigned int gpufreq_power;
+};
+
+#define MT_GPUFREQ_STATIC_PWR_READY2USE
 
 #endif /* __GPUFREQ_MT6879_H__ */

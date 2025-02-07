@@ -862,7 +862,7 @@ static void mml_core_dvfs_end(struct mml_task *task, u32 pipe)
 		}
 
 		mml_core_calc_tput(task_pipe_cur->task, max_pixel, pipe,
-			&task->end_time, &curr_time);
+			&task_pipe_cur->task->end_time, &curr_time);
 
 		throughput = 0;
 		list_for_each_entry(task_pipe_tmp, &path_clt->tasks, entry_clt) {
@@ -1032,7 +1032,10 @@ static void core_taskdone_kt_work(struct kthread_work *work)
 			mmp_data2_fence(task->fence->context, task->fence->seqno));
 	}
 
-	queue_work(task->config->wq_done, &task->wq_work_done);
+	if (task->config && task->config->wq_done)
+		queue_work(task->config->wq_done, &task->wq_work_done);
+	else
+		mml_err("wq_done is NULL!!!");
 	mml_trace_end();
 }
 
@@ -1807,6 +1810,7 @@ void mml_update_array(struct mml_task_reuse *reuse,
 	*va = (*va & GENMASK_ULL(63, 32)) | value;
 }
 
+#if IS_ENABLED(CONFIG_MTK_MML_DEBUG)
 noinline int tracing_mark_write(char *fmt, ...)
 {
 #ifdef CONFIG_TRACING
@@ -1827,3 +1831,4 @@ noinline int tracing_mark_write(char *fmt, ...)
 #endif
 	return 0;
 }
+#endif

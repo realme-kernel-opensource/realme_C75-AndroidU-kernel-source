@@ -126,8 +126,8 @@
 
 	mt6358keys: mt6358keys {
 			compatible = "mediatek,mt6358-keys";
-			mediatek,long-press-mode = <1>;
-			power-off-time-sec = <0>;
+			mediatek,long-press-mode = <2>;
+			power-off-time-sec = <1>;
 
 			power {
 				linux,keycodes = <116>;
@@ -436,6 +436,8 @@
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <3000000>;
 			regulator-enable-ramp-delay = <270>;
+			//regulator-always-on;
+			//regulator-boot-on;
 		};
 		mt_pmic_vaud28_ldo_reg: ldo_vaud28 {
 			regulator-name = "vaud28";
@@ -455,6 +457,18 @@
 			regulator-max-microvolt = <900000>;
 			regulator-enable-ramp-delay = <264>;
 			regulator-boot-on;
+		};
+		mt6358_vmch_eint_high: VMCH_EINT_HIGH {
+				regulator-name = "mt6358_vmch_eint_high";
+				regulator-min-microvolt = <2900000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <60>;
+		};
+		mt6358_vmch_eint_low: VMCH_EINT_LOW {
+				regulator-name = "mt6358_vmch_eint_low";
+				regulator-min-microvolt = <2900000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <60>;
 		};
 	};	/* End of mt6358regulator */
 	mt6358_rtc: mt6358_rtc {

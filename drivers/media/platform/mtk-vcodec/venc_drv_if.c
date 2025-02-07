@@ -91,7 +91,8 @@ int venc_if_get_param(struct mtk_vcodec_ctx *ctx, enum venc_get_param_type type,
 			__func__, ctx->drv_handle);
 	}
 
-	ret = ctx->enc_if->get_param(ctx->drv_handle, type, out);
+	if (ctx->enc_if)
+		ret = ctx->enc_if->get_param(ctx->drv_handle, type, out);
 
 	if (!drv_handle_exist) {
 		mtk_vcodec_del_ctx_list(ctx);
@@ -123,7 +124,8 @@ int venc_if_set_param(struct mtk_vcodec_ctx *ctx,
 			__func__, ctx->drv_handle);
 	}
 
-	ret = ctx->enc_if->set_param(ctx->drv_handle, type, in);
+	if (ctx->enc_if)
+		ret = ctx->enc_if->set_param(ctx->drv_handle, type, in);
 
 	if (!drv_handle_exist) {
 		mtk_vcodec_del_ctx_list(ctx);
@@ -239,13 +241,10 @@ void venc_check_release_lock(void *ctx_check)
 	int i;
 
 	for (i = 0; i < MTK_VENC_HW_NUM; i++) {
-		mutex_lock(&ctx->dev->enc_hw_mutex);
 		if (ctx->core_locked[i] == 1) {
 			venc_encode_unprepare(ctx, i, &flags);
-			venc_unlock(ctx, i);
 			mtk_v4l2_err("[%d] daemon killed when holding lock %d", ctx->id, i);
 		}
-		mutex_unlock(&ctx->dev->enc_hw_mutex);
 	}
 }
 

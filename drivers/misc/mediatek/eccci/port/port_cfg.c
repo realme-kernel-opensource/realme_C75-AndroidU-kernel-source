@@ -788,18 +788,18 @@ EXPORT_SYMBOL(mtk_ccci_request_port);
 
 int find_port_by_channel(int index, struct port_t **port)
 {
-        struct port_t *ccci_port = (port_md_gen == 6293) ?
-                md1_ccci_ports_6293 : md1_ccci_ports;
-        unsigned int port_array_size = ccci_get_port_size();
+	struct port_t *ccci_port = (port_md_gen == 6293) ?
+		md1_ccci_ports_6293 : md1_ccci_ports;
+	unsigned int port_array_size = ccci_get_port_size();
 
-        if (index < 0 || index >= port_array_size) {
-                CCCI_ERROR_LOG(-1, PORT, "%s: invalid index = %d\n",
-                                __func__, index);
-                return -EINVAL;
-        }
+	if (index < 0 || index >= port_array_size) {
+		CCCI_ERROR_LOG(-1, PORT, "%s: invalid index = %d\n",
+				__func__, index);
+		return -EINVAL;
+	}
 
-        *port = &ccci_port[index];
-        return 0;
+	*port = &ccci_port[index];
+	return 0;
 }
 
 int mtk_ccci_open_port(int index)

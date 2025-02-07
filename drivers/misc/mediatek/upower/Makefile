@@ -13,12 +13,13 @@
 
 
 ccflags-y += \
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
-	-I$(srctree)/drivers/misc/mediatek/include/	\
+	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/		\
+	-I$(srctree)/drivers/misc/mediatek/include/			\
 	-I$(srctree)/drivers/misc/mediatek/include/leakage_table_v2	\
-	-I$(srctree)/drivers/misc/mediatek/include/upower	\
-	-I$(srctree)/drivers/misc/mediatek/eem_v2/  \
-	-I$(srctree)/drivers/misc/mediatek/cpufreq_v2/
+	-I$(srctree)/drivers/misc/mediatek/include/upower		\
+	-I$(srctree)/drivers/misc/mediatek/eem_v2/  			\
+	-I$(srctree)/drivers/misc/mediatek/cpufreq_v2/		\
+	-I$(srctree)/drivers/misc/mediatek/eem_v2/inc
 
 
 ifneq ($(filter m y, $(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)),)
@@ -39,6 +40,9 @@ ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6768)),)
 Upower-y += mtk_unified_power_plat.o
 else ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6765)),)
 Upower-y += mtk_unified_power_plat_6765.o
+else ifneq ($(strip $(CONFIG_MTK_PLAT_POWER_MT6833)),)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/cpufreq_v2/src/common_v3/
+Upower-y += mtk_unified_power_plat_6833.o
 endif
 
 

@@ -23,22 +23,13 @@
 #include <mtk_spm_irq.h>
 #include <mtk_spm_internal.h>
 
-//#if IS_ENABLED(CONFIG_MTK_SYS_CIRQ)
-//#include <mt-plat/mtk_cirq.h>
-//#endif /* CONFIG_MTK_SYS_CIRQ */
-//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
-//#include <linux/irqchip/mtk-gic-extend.h>
-//#endif /* CONFIG_MTK_GIC_V3_EXT */
 
 enum MTK_SPM_CIRQ_SMC_CALL {
-	MTK_SPM_CIRQ_SMC_CLONE_GIC,
-	MTK_SPM_CIRQ_SMC_ENABLE,
-	MTK_SPM_CIRQ_SMC_DISABLE,
-	MTK_SPM_CIRQ_SMC_FLUSH,
-	MTK_SPM_IRQ_SMC_MASK_ALL,
-	MTK_SPM_IRQ_SMC_UNMASK_FOR_SLEEP_EX,
-	MTK_SPM_IRQ_SMC_MASK_RESTORE,
-	MTK_SPM_IRQ_SMC_SET_PENDING
+	MTK_SPM_IRQ_SMC_SET_PENDING,
+	MTK_SPM_IRQ_SMC_REG_IRQ,
+	MTK_SPM_IRQ_SMC_SET_WAKEUP_SOURCES,
+	MTK_SPM_IRQ_SMC_BACKUP,
+	MTK_SPM_IRQ_SMC_RESTORE
 };
 
 static inline unsigned int virq_to_hwirq(unsigned int virq)
@@ -97,6 +88,8 @@ static void mtk_spm_get_edge_trigger_irq(void)
 	int i;
 	struct device_node *node;
 	unsigned int irq_type;
+	struct arm_smccc_res smc_res;
+	unsigned int hwirq = 0;
 
 	pr_info("[SPM] edge trigger irqs:\n");
 	for (i = 0; i < IRQ_NUMBER; i++) {
@@ -119,32 +112,16 @@ static void mtk_spm_get_edge_trigger_irq(void)
 		/* Note: Initialize irq type to avoid pending irqs */
 		irq_type = irq_get_trigger_type(edge_trig_irqs[i]);
 		irq_set_irq_type(edge_trig_irqs[i], irq_type);
+		hwirq = virq_to_hwirq(edge_trig_irqs[i]);
+		arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL,
+					MTK_SPM_IRQ_SMC_REG_IRQ,
+					hwirq, i, 0, 0, 0, 0, &smc_res);
+		if (smc_res.a0)
+			pr_info("[SPM] fail to register wakeup source %d:,ret=0x%lx\n",
+				i, smc_res.a0);
 
 		pr_info("[SPM] '%s', irq=%d, type=%d\n", list[i].name,
 			edge_trig_irqs[i], irq_type);
-	}
-}
-
-//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
-static void mtk_spm_unmask_edge_trig_irqs_for_cirq(void)
-{
-	int i;
-	unsigned int hwirq = 0;
-	struct arm_smccc_res smc_res;
-	for (i = 0; i < IRQ_NUMBER; i++) {
-		if (edge_trig_irqs[i]) {
-			/* unmask edge trigger irqs */
-			//mt_irq_unmask_for_sleep_ex(edge_trig_irqs[i]);
-			hwirq = virq_to_hwirq(edge_trig_irqs[i]);
-			pr_info("[SPM] start to unmask edge trigger irq: %d, hwirq: %d\n",
-					edge_trig_irqs[i], hwirq);
-			arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL,
-				MTK_SPM_IRQ_SMC_UNMASK_FOR_SLEEP_EX,
-				hwirq, 0, 0, 0, 0, 0, &smc_res);
-			if (smc_res.a0)
-				pr_info("[SPM] fail to unmask edge trigger irq: %d, ret=0x%lx\n",
-					edge_trig_irqs[i], smc_res.a0);
-		}
 	}
 }
 
@@ -152,26 +129,18 @@ static bool spm_in_idle;
 static int cpu_pm_callback_wakeup_src_restore(
 	struct notifier_block *self, unsigned long cmd, void *v)
 {
-	int i;
-	unsigned int hwirq = 0;
 	struct arm_smccc_res smc_res;
+
 	/* Note: cmd will be CPU_PM_ENTER/CPU_PM_EXIT/CPU_PM_ENTER_FAILED.
 	 * Set edge trigger interrupt pending only in case CPU_PM_EXIT
 	 */
 	if (cmd == CPU_PM_EXIT && spm_in_idle) {
-		for (i = 0; i < IRQ_NUMBER; i++) {
-			if (spm_read(SPM_SW_RSV_0) & list[i].wakesrc)
-				//mt_irq_set_pending(edge_trig_irqs[i]);
-				hwirq = virq_to_hwirq(edge_trig_irqs[i]);
-				pr_info("[SPM] start to pending edge trigger irq: %d, hwirq: %d\n",
-					edge_trig_irqs[i], hwirq);
-				arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL,
-					MTK_SPM_IRQ_SMC_SET_PENDING,
-					hwirq, 0, 0, 0, 0, 0, &smc_res);
-				if (smc_res.a0)
-					pr_info("[SPM] fail to set edge irq pending: %d, ret=0x%lx\n",
-						edge_trig_irqs[i], smc_res.a0);
-		}
+		arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL,
+			MTK_SPM_IRQ_SMC_SET_PENDING,
+			0, 0, 0, 0, 0, 0, &smc_res);
+		if (smc_res.a0)
+			pr_info("[SPM] fail to set edge irq pending: 0x%lx\n",
+				smc_res.a0);
 	}
 
 	return NOTIFY_OK;
@@ -181,78 +150,28 @@ static struct notifier_block mtk_spm_cpu_pm_notifier_block = {
 	.notifier_call = cpu_pm_callback_wakeup_src_restore,
 };
 
-//#endif
-
 static unsigned int spm_irq_0;
-//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
-//static struct mtk_irq_mask irq_mask;
-//#endif
 
 void mtk_spm_irq_backup(void)
 {
 	struct arm_smccc_res smc_res;
-	unsigned int hwirq = 0;
-//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
-	spm_in_idle = true;
-	//mt_irq_mask_all(&irq_mask);
-	pr_info("[SPM] start to mask all trigger irqs\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_MASK_ALL,
-		0, 0, 0, 0, 0, 0, &smc_res);
-	if (smc_res.a0)
-		pr_info("[SPM] fail to mask all trigger irqs, ret=0x%lx\n", smc_res.a0);
-	//mt_irq_unmask_for_sleep_ex(spm_irq_0);
-	hwirq = virq_to_hwirq(spm_irq_0);
-	pr_info("[SPM] start to unmask spm irq 0: %d, hwirq: %d\n", spm_irq_0, hwirq);
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_UNMASK_FOR_SLEEP_EX,
-		hwirq, 0, 0, 0, 0, 0, &smc_res);
-	if (smc_res.a0)
-		pr_info("[SPM] fail to unmask spm irq 0, ret=0x%lx\n", smc_res.a0);
-	mtk_spm_unmask_edge_trig_irqs_for_cirq();
-//#endif
 
-//#if IS_ENABLED(CONFIG_MTK_SYS_CIRQ)
-	//mt_cirq_clone_gic();
-	pr_info("[SPM] start to clone gic\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_CIRQ_SMC_CLONE_GIC,
+	spm_in_idle = true;
+	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_BACKUP,
 		0, 0, 0, 0, 0, 0, &smc_res);
 	if (smc_res.a0)
-		pr_info("[SPM] fail to clone gic, ret=0x%lx\n", smc_res.a0);
-	//mt_cirq_enable();
-	pr_info("[SPM] start to enable cirq\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_CIRQ_SMC_ENABLE,
-		0, 0, 0, 0, 0, 0, &smc_res);
-	if (smc_res.a0)
-		pr_info("[SPM] fail to enable cirq, ret=0x%lx\n", smc_res.a0);
-//#endif
+		pr_info("[SPM] fail to backup irqs, ret=0x%lx\n", smc_res.a0);
 }
 
 void mtk_spm_irq_restore(void)
 {
 	struct arm_smccc_res smc_res;
-//#if IS_ENABLED(CONFIG_MTK_SYS_CIRQ)
-	//mt_cirq_flush();
-	pr_info("[SPM] start to flush cirq\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_CIRQ_SMC_FLUSH,
-		0, 0, 0, 0, 0, 0, &smc_res);
-	if (smc_res.a0)
-		pr_info("[SPM] fail to flush cirq, ret=0x%lx\n", smc_res.a0);
-	//mt_cirq_disable();
-	pr_info("[SPM] start to disable cirq\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_CIRQ_SMC_DISABLE,
-		0, 0, 0, 0, 0, 0, &smc_res);
-	if (smc_res.a0)
-		pr_info("[SPM] fail to disable cirq, ret=0x%lx\n", smc_res.a0);
-//#endif
 
-//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
-	//mt_irq_mask_restore(&irq_mask);
-	pr_info("[SPM] start to restore irq mask\n");
-	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_MASK_RESTORE,
+	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_RESTORE,
 		0, 0, 0, 0, 0, 0, &smc_res);
 	if (smc_res.a0)
-		pr_info("[SPM] fail to restore irq mask, ret=0x%lx\n", smc_res.a0);
+		pr_info("[SPM] fail to restore cirq, ret=0x%lx\n", smc_res.a0);
 	spm_in_idle = false;
-//#endif
 }
 
 unsigned int mtk_spm_get_irq_0(void)
@@ -325,7 +244,10 @@ struct spm_irq_desc {
 
 int mtk_spm_irq_register(unsigned int spmirq0)
 {
+	struct arm_smccc_res smc_res;
 	int i, err, r = 0;
+	unsigned int hwirq0 = 0;
+
 	struct spm_irq_desc irqdesc[] = {
 		{.irq = 0, .handler = spm_irq0_handler,}
 	};
@@ -349,14 +271,14 @@ int mtk_spm_irq_register(unsigned int spmirq0)
 	spm_irq_0 = spmirq0;
 
 	mtk_spm_get_edge_trigger_irq();
+	hwirq0 = virq_to_hwirq(spm_irq_0);
+	//set_wakeup_sources(edge_trig_irqs, IRQ_NUMBER);
+	arm_smccc_smc(MTK_SIP_MTK_LPM_CONTROL, MTK_SPM_IRQ_SMC_SET_WAKEUP_SOURCES,
+		hwirq0, 0, 0, 0, 0, 0, &smc_res);
+	if (smc_res.a0)
+		pr_info("[SPM] fail to set wakeup sources, ret=0x%lx\n", smc_res.a0);
 
-#if IS_ENABLED(CONFIG_FAST_CIRQ_CLONE_FLUSH)
-	set_wakeup_sources(edge_trig_irqs, IRQ_NUMBER);
-#endif
-
-	//#if IS_ENABLED(CONFIG_MTK_GIC_V3_EXT)
 	cpu_pm_register_notifier(&mtk_spm_cpu_pm_notifier_block);
-	//#endif
 
 	return r;
 }

@@ -1,0 +1,4 @@
+config OCP2130_I2C
+    tristate "LCD Bias ocp2130"
+	help
+	  LCD Bias ocp2130

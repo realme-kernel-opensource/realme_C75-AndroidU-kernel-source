@@ -602,6 +602,7 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 	}
 
 	val = (*efuse_buf);
+	kfree(efuse_buf);
 
 	turbo_flag = 0;
 	if ((val == 0x80) || (val == 0x01) || (val == 0x40) || (val == 0x02) ||
@@ -631,7 +632,7 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 		return PTR_ERR(efuse_buf);
 	}
 	ptp_val = (*efuse_buf & 0xF0);
-
+	kfree(efuse_buf);
 
 	if (ptp_val <= 0x10 && lv == CPU_LEVEL_0)
 		lv = CPU_LEVEL_3;
@@ -653,9 +654,13 @@ unsigned int cpufreq_get_nr_clusters(void)
 void cpufreq_get_cluster_cpus(struct cpumask *cpu_mask, unsigned int cid)
 {
 	if (cid == 0) {
-		cpumask_setall(cpu_mask);
-		cpumask_clear_cpu(6, cpu_mask);
-		cpumask_clear_cpu(7, cpu_mask);
+		cpumask_clear(cpu_mask);
+		cpumask_set_cpu(0, cpu_mask);
+		cpumask_set_cpu(1, cpu_mask);
+		cpumask_set_cpu(2, cpu_mask);
+		cpumask_set_cpu(3, cpu_mask);
+		cpumask_set_cpu(4, cpu_mask);
+		cpumask_set_cpu(5, cpu_mask);
 	} else if (cid == 1) {
 		cpumask_clear(cpu_mask);
 		cpumask_set_cpu(6, cpu_mask);

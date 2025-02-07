@@ -920,6 +920,9 @@ static int ccif_rx_collect(struct md_ccif_queue *queue, int budget,
 	struct ccci_per_md *per_md_data =
 		ccci_get_per_md_data(md_ctrl->md_id);
 
+	if (per_md_data == NULL)
+		return -1;
+
 	if (atomic_read(&queue->rx_on_going)) {
 		CCCI_DEBUG_LOG(md_ctrl->md_id, TAG,
 			"Q%d rx is on-going(%d)1\n",
@@ -995,22 +998,6 @@ static int ccif_rx_collect(struct md_ccif_queue *queue, int budget,
 				ccci_port_get_dev_name(ccci_h->channel));
 			if (ccci_h->channel == CCCI_FS_RX)
 				ccci_h->data[0] |= CCCI_FS_AP_CCCI_WAKEUP;
-			else if (ccci_h->channel >= CCCI_MIPC0_CHANNEL_RX &&
-				ccci_h->channel <= CCCI_MIPC9_CHANNEL_RX) {
-				/*
-				 * MIPC message data struct:
-				 * typedef struct {
-				 * u32 magic; u16 padding[2]; u8 msg_sim_ps_id;
-				 * u8 msg_flag;
-				 * u16 msg_id;  //log to show,offset is 10bytes
-				 * u16 msg_txid; u16 msg_len;} mipc_msg_hdr_t;
-				 */
-				CCCI_NOTICE_LOG(0, TAG,
-					"%s:CCCI_MIPC ch%d wakeup,msg_id=0x%x\n",
-					__func__, ccci_h->channel,
-					*(unsigned short *)((unsigned char *)skb->data +
-						sizeof(struct ccci_header) + 10));
-			}
 		}
 		if (ccci_h->channel == CCCI_C2K_LB_DL)
 			atomic_set(&lb_dl_q, queue->index);
@@ -1450,6 +1437,9 @@ static int md_ccif_op_send_skb(unsigned char hif_id, int qno,
 	struct ccci_per_md *per_md_data =
 		ccci_get_per_md_data(md_ctrl->md_id);
 	int md_state;
+
+	if (per_md_data == NULL)
+		return -1;
 
 	if (qno == 0xFF)
 		return -CCCI_ERR_INVALID_QUEUE_INDEX;
@@ -2050,7 +2040,7 @@ static void ccif_set_clk_on(unsigned char hif_id)
 
 /*
  * for ccif4,5 power off action different:
- * gen97: 0x1000330C [31:0] write 0x0, except mt6855 used 98 flow
+ * gen97: 0x1000330C [31:0] write 0x0
  * gen98: 0x10001BF0 [15:0] write 0xF7FF
  * gen95: 0x10001C10 [31:0] write 0x0
  */
@@ -2060,11 +2050,10 @@ static void ccif_set_clk_off(unsigned char hif_id)
 		(struct md_ccif_ctrl *)ccci_hif_get_by_id(hif_id);
 	int idx;
 	unsigned long flags;
-	unsigned int ap_plat_info;
 
 	CCCI_NORMAL_LOG(ccif_ctrl->md_id, TAG, "%s start\n", __func__);
-	ap_plat_info = ccci_get_ap_plat_info();
-	if ((ap_plat_info == 6855) || (ccif_ctrl->plat_val.md_gen >= 6298) ||
+
+	if ((ccif_ctrl->plat_val.md_gen >= 6298) ||
 	    (ccif_ctrl->ccif_hw_reset_ver == 1)) {
 		/* write 1 clear register */
 		regmap_write(ccif_ctrl->plat_val.infra_ao_base,
@@ -2234,6 +2223,9 @@ static int ccif_hif_hw_init(struct device *dev, struct md_ccif_ctrl *md_ctrl)
 	md_ctrl->ccif_ap_base = of_iomap(node, 0);
 	md_ctrl->ccif_md_base = of_iomap(node, 1);
 
+	md_ctrl->ccif2_ap_base = of_iomap(node, 2);
+	md_ctrl->ccif2_md_base = of_iomap(node, 3);
+
 	md_ctrl->ap_ccif_irq0_id = irq_of_parse_and_map(node, 0);
 	md_ctrl->ap_ccif_irq1_id = irq_of_parse_and_map(node, 1);
 
@@ -2289,12 +2281,16 @@ static int ccif_hif_hw_init(struct device *dev, struct md_ccif_ctrl *md_ctrl)
 		CCCI_ERROR_LOG(-1, TAG,
 			"%s: get ccif-pericfg failed\n", __func__);
 
-	if (!md_ctrl->ccif_ap_base ||
-		!md_ctrl->ccif_md_base) {
+	if (!md_ctrl->ccif_ap_base || !md_ctrl->ccif_md_base) {
 		CCCI_ERROR_LOG(-1, TAG,
 			"ap_ccif_base=NULL or ccif_md_base NULL\n");
 		return -2;
 	}
+
+	if (!md_ctrl->ccif2_ap_base || !md_ctrl->ccif2_md_base)
+		CCCI_ERROR_LOG(-1, TAG,
+			"ccif2_ap_base=NULL or ccif2_md_base NULL\n");
+
 	if (md_ctrl->ap_ccif_irq0_id == 0 ||
 		md_ctrl->ap_ccif_irq1_id == 0) {
 		CCCI_ERROR_LOG(-1, TAG,
@@ -2452,7 +2448,7 @@ static int ccif_resume_noirq(struct device *dev)
 	arm_smccc_smc(MTK_SIP_KERNEL_CCCI_CONTROL, MD_CLOCK_REQUEST,
 		MD_WAKEUP_AP_SRC, WAKE_SRC_HIF_CCIF0, 0, 0, 0, 0, &res);
 	CCCI_NORMAL_LOG(-1, TAG,
-		"[%s] flag_1=0x%llx, flag_2=0x%llx, flag_3=0x%llx, flag_4=0x%llx\n",
+		"[%s] flag_1=0x%lx, flag_2=0x%lx, flag_3=0x%lx, flag_4=0x%lx\n",
 		__func__, res.a0, res.a1, res.a2, res.a3);
 	if (!res.a0 && res.a1 == WAKE_SRC_HIF_CCIF0) {
 		ccif_ch = ccif_read32(ccif_ctrl->ccif_ap_base, APCCIF_RCHNUM);

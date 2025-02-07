@@ -73,6 +73,7 @@ static struct mtk_drm_helper help_info[] = {
 	{MTK_DRM_OPT_PQ_34_COLOR_MATRIX, 0, "MTK_DRM_OPT_PQ_34_COLOR_MATRIX"},
 	{MTK_DRM_OPT_DYN_MIPI_CHANGE, 1, "MTK_DRM_OPT_DYN_MIPI_CHANGE"},
 	{MTK_DRM_OPT_PRIM_DUAL_PIPE, 0, "MTK_DRM_OPT_PRIM_DUAL_PIPE"},
+	{MTK_DRM_OPT_PAPER_MODE, 0, "MTK_DRM_OPT_PAPER_MODE"},
 	{MTK_DRM_OPT_MSYNC2_0, 0, "MTK_DRM_OPT_MSYNC2_0"},
 	{MTK_DRM_OPT_MML_PRIMARY, 0, "MTK_DRM_OPT_MML_PRIMARY"},
 	{MTK_DRM_OPT_MML_SUPPORT_CMD_MODE, 0, "MTK_DRM_OPT_MML_SUPPORT_CMD_MODE"},
@@ -82,6 +83,7 @@ static struct mtk_drm_helper help_info[] = {
 	{MTK_DRM_OPT_RES_SWITCH, 1, "MTK_DRM_OPT_RES_SWITCH"},
 	{MTK_DRM_OPT_PRE_TE, 1, "MTK_DRM_OPT_PRE_TE"},
 	{MTK_DRM_OPT_VIRTUAL_DISP, 1, "MTK_DRM_OPT_VIRTUAL_DISP"},
+	{MTK_DRM_OPT_SHARE_SRAM, 0, "MTK_DRM_OPT_SHARE_SRAM"},
 };
 
 enum DISP_HELPER_STAGE disp_helper_get_stage(void)
@@ -177,6 +179,8 @@ int mtk_drm_helper_get_opt(struct mtk_drm_helper *helper_opt,
 	return ret;
 }
 
+unsigned int dsi1_id3_val;
+EXPORT_SYMBOL(dsi1_id3_val);
 void mtk_drm_helper_init(struct device *dev, struct mtk_drm_helper **helper_opt)
 {
 	int i, value, index, ret;
@@ -212,6 +216,11 @@ void mtk_drm_helper_init(struct device *dev, struct mtk_drm_helper **helper_opt)
 		mtk_drm_helper_set_opt_by_name(tmp_opt,
 				"MTK_DRM_OPT_MML_SUPPORT_CMD_MODE", 1);
 
+	if (of_property_read_u32(dev->of_node, "dsi1_lcm_id3", &dsi1_id3_val)) {
+		DDPPR_ERR("read dsi1_id3 from lk fail\n");
+	} else {
+		DDPMSG("read dsi1_id3  from lk 0x%x\n", dsi1_id3_val);
+	}
 	*helper_opt = tmp_opt;
 }
 

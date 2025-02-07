@@ -15,7 +15,7 @@
 #include <mtk_spm_internal.h> /* mtk_idle_cond_check */
 #include <mtk_spm_suspend_internal.h>
 #include <mtk_idle_fs/mtk_idle_sysfs.h>
-//#include <mtk_power_gs_api.h>
+#include <mtk_power_gs_api.h>
 #include <mtk_idle.h>
 #include <mtk_idle_internal.h>
 #if IS_ENABLED(CONFIG_MTK_SND_SOC_NEW_ARCH)
@@ -92,22 +92,6 @@ void __attribute__ ((weak)) bus_tracer_enable(void)
 	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 }
 #endif /* CONFIG_MTK_BUS_TRACER */
-
-void __attribute__((weak)) subsys_if_on(void)
-{
-	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
-}
-
-void __attribute__((weak)) pll_if_on(void)
-{
-	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
-}
-
-void __attribute__((weak))
-gpio_dump_regs(void)
-{
-
-}
 
 void __attribute__((weak))
 spm_output_sleep_option(void)

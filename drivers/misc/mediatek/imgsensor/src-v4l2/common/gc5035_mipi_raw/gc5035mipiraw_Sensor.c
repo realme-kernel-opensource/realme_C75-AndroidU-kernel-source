@@ -48,15 +48,15 @@ static struct imgsensor_info_struct imgsensor_info = {
     .checksum_value = 0xf61b7b7c,
 
     .pre = {
-        .pclk = 87600000,
-        .linelength = 1460,
+        .pclk = 175200000,
+        .linelength = 2920,
         .framelength = 2008,
         .startx = 0,
         .starty = 0,
-        .grabwindow_width = 1296,
-        .grabwindow_height = 972,
+        .grabwindow_width = 2592,
+        .grabwindow_height = 1944,
         .mipi_data_lp2hs_settle_dc = 85,
-        .mipi_pixel_rate = 87600000,
+        .mipi_pixel_rate = 175200000,
         .max_framerate = 300,
     },
     .cap = {
@@ -104,7 +104,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .grabwindow_width = 1280,
         .grabwindow_height = 720,
         .mipi_data_lp2hs_settle_dc = 85,
-        .mipi_pixel_rate = 175200000,
+	.mipi_pixel_rate = 87600000,
         .max_framerate = 600,
     },
     .slim_video = {
@@ -161,14 +161,14 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 /* Sensor output window information */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] = {
-    { 2592, 1944,   0,   0, 2592, 1944, 1296,  972, 0, 0,
-        1296,  972, 0, 0, 1296,  972 },
-    { 2592, 1944,   0,   0, 2592, 1944, 2592, 1944, 0, 0,
+   { 2592, 1944,   0,   0, 2592, 1944, 2592, 1944, 0, 0,
         2592, 1944, 0, 0, 2592, 1944 },
     { 2592, 1944,   0,   0, 2592, 1944, 2592, 1944, 0, 0,
         2592, 1944, 0, 0, 2592, 1944 },
-    { 2592, 1944, 656, 492, 1280,  960,  640,  480, 0, 0,
-        640,  480, 0, 0,  640,  480 },
+    { 2592, 1944,   0,   0, 2592, 1944, 2592, 1944, 0, 0,
+        2592, 1944, 0, 0, 2592, 1944 },
+	{ 2592, 1944,  16, 252, 2560, 1440, 1280,  720, 0, 0,
+		1280,  720, 0, 0, 1280,  720 },
     { 2592, 1944,  16, 252, 2560, 1440, 1280,  720, 0, 0,
         1280,  720, 0, 0, 1280,  720 }
 };
@@ -740,17 +740,17 @@ static void set_shutter(struct subdrv_ctx *ctx, kal_uint16 shutter)
     write_shutter(ctx, shutter);
 } /* set_shutter */
 
-static kal_uint16 gain2reg(struct subdrv_ctx *ctx, const kal_uint32 gain)
+static kal_uint32 gain2reg(struct subdrv_ctx *ctx, const kal_uint32 gain)
 {
-    kal_uint16 reg_gain = gain << 2;
+	kal_uint32 reg_gain = gain/4;
 
-    if (reg_gain < GC5035_SENSOR_GAIN_BASE)
-        reg_gain = GC5035_SENSOR_GAIN_BASE;
-    else if (reg_gain > GC5035_SENSOR_GAIN_MAX)
-        reg_gain = GC5035_SENSOR_GAIN_MAX;
+	if (reg_gain < GC5035_SENSOR_GAIN_BASE)
+		reg_gain = GC5035_SENSOR_GAIN_BASE;
+	if (reg_gain > GC5035_SENSOR_GAIN_MAX)
+		reg_gain = GC5035_SENSOR_GAIN_MAX;
 
 
-    return (kal_uint16) reg_gain;
+	return (kal_uint32) reg_gain;
 }
 
 /*************************************************************************
@@ -771,7 +771,7 @@ static kal_uint16 gain2reg(struct subdrv_ctx *ctx, const kal_uint32 gain)
  *************************************************************************/
 __attribute__((unused)) static kal_uint32 set_gain(struct subdrv_ctx *ctx, kal_uint32 gain)
 {
-    kal_uint16 reg_gain;
+	kal_uint32 reg_gain;
     kal_uint32 temp_gain;
     kal_int16 gain_index;
     kal_uint16 GC5035_AGC_Param[GC5035_SENSOR_GAIN_MAP_SIZE][2] = {
@@ -1025,24 +1025,24 @@ static void preview_setting(struct subdrv_ctx *ctx)
     //Preview 2592*1944 30fps 24M MCLK 4lane 608Mbps/lane
     // preview 30.01fps
     /* System */
-    write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfe, 0x00);
     write_cmos_sensor(0x3e, 0x01);
     write_cmos_sensor(0xfc, 0x01);
     write_cmos_sensor(0xf4, 0x40);
-    write_cmos_sensor(0xf5, 0xe4);
-    write_cmos_sensor(0xf6, 0x14);
-    write_cmos_sensor(0xf8, 0x49);
-    write_cmos_sensor(0xf9, 0x12);
-    write_cmos_sensor(0xfa, 0x01);
+	write_cmos_sensor(0xf5, 0xe9);
+	write_cmos_sensor(0xf6, 0x14);
+	write_cmos_sensor(0xf8, 0x49);
+    write_cmos_sensor(0xf9, 0x82);
+    write_cmos_sensor(0xfa, 0x00);
     write_cmos_sensor(0xfc, 0x81);
     write_cmos_sensor(0xfe, 0x00);
     write_cmos_sensor(0x36, 0x01);
     write_cmos_sensor(0xd3, 0x87);
     write_cmos_sensor(0x36, 0x00);
-    write_cmos_sensor(0x33, 0x20);
+    write_cmos_sensor(0x33, 0x00);
     write_cmos_sensor(0xfe, 0x03);
-    write_cmos_sensor(0x01, 0x87);
-    write_cmos_sensor(0xf7, 0x11);
+    write_cmos_sensor(0x01, 0xe7);
+    write_cmos_sensor(0xf7, 0x01);
     write_cmos_sensor(0xfc, 0x8f);
     write_cmos_sensor(0xfc, 0x8f);
     write_cmos_sensor(0xfc, 0x8e);
@@ -1066,24 +1066,24 @@ static void preview_setting(struct subdrv_ctx *ctx)
     write_cmos_sensor(0x0e, 0xa8);
     write_cmos_sensor(0x0f, 0x0a);
     write_cmos_sensor(0x10, 0x30);
-    write_cmos_sensor(0x21, 0x60);
-    write_cmos_sensor(0x29, 0x30);
-    write_cmos_sensor(0x44, 0x18);
-    write_cmos_sensor(0x4e, 0x20);
-    write_cmos_sensor(0x8c, 0x20);
-    write_cmos_sensor(0x91, 0x15);
-    write_cmos_sensor(0x92, 0x3a);
+    write_cmos_sensor(0x21, 0x48);
+    write_cmos_sensor(0x29, 0x58);
+    write_cmos_sensor(0x44, 0x20);
+    write_cmos_sensor(0x4e, 0x1a);
+    write_cmos_sensor(0x8c, 0x1a);
+    write_cmos_sensor(0x91, 0x80);
+    write_cmos_sensor(0x92, 0x28);
     write_cmos_sensor(0x93, 0x20);
-    write_cmos_sensor(0x95, 0x45);
-    write_cmos_sensor(0x96, 0x35);
-    write_cmos_sensor(0xd5, 0xf0);
-    write_cmos_sensor(0x97, 0x20);
-    write_cmos_sensor(0x1f, 0x19);
-    write_cmos_sensor(0xce, 0x9b);
-    write_cmos_sensor(0xd0, 0xb3);
+    write_cmos_sensor(0x95, 0xa0);
+    write_cmos_sensor(0x96, 0xe0);
+    write_cmos_sensor(0xd5, 0xfc);
+    write_cmos_sensor(0x97, 0x28);
+    write_cmos_sensor(0x1f, 0x11);
+    write_cmos_sensor(0xce, 0x98);
+    write_cmos_sensor(0xd0, 0xb2);
     write_cmos_sensor(0xfe, 0x02);
-    write_cmos_sensor(0x14, 0x02);
-    write_cmos_sensor(0x15, 0x00);
+    write_cmos_sensor(0x14, 0x01);
+    write_cmos_sensor(0x15, 0x02);
     write_cmos_sensor(0xfe, 0x00);
     write_cmos_sensor(0xfc, 0x88);
     write_cmos_sensor(0xfe, 0x10);
@@ -1099,34 +1099,34 @@ static void preview_setting(struct subdrv_ctx *ctx)
 
     /* BLK */
     write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x49, 0x00);
-    write_cmos_sensor(0x4a, 0x01);
-    write_cmos_sensor(0x4b, 0xf8);
+    write_cmos_sensor(0x49, 0x03);
+    write_cmos_sensor(0x4a, 0xff);
+    write_cmos_sensor(0x4b, 0xc0);
 
     /* Anti_blooming */
     write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x4e, 0x06);
-    write_cmos_sensor(0x44, 0x02);
+    write_cmos_sensor(0x4e, 0x3c);
+    write_cmos_sensor(0x44, 0x08);
 
     /* Crop */
     write_cmos_sensor(0xfe, 0x01);
     write_cmos_sensor(0x91, 0x00);
-    write_cmos_sensor(0x92, 0x04);
+    write_cmos_sensor(0x92, 0x08);
     write_cmos_sensor(0x93, 0x00);
-    write_cmos_sensor(0x94, 0x03);
-    write_cmos_sensor(0x95, 0x03);
-    write_cmos_sensor(0x96, 0xcc);
-    write_cmos_sensor(0x97, 0x05);
-    write_cmos_sensor(0x98, 0x10);
+    write_cmos_sensor(0x94, 0x07);
+    write_cmos_sensor(0x95, 0x07);
+    write_cmos_sensor(0x96, 0x98);
+    write_cmos_sensor(0x97, 0x0a);
+    write_cmos_sensor(0x98, 0x20);
     write_cmos_sensor(0x99, 0x00);
 
     /* MIPI */
     write_cmos_sensor(0xfe, 0x03);
-    write_cmos_sensor(0x02, 0x58);
-    write_cmos_sensor(0x22, 0x03);
-    write_cmos_sensor(0x26, 0x06);
-    write_cmos_sensor(0x29, 0x03);
-    write_cmos_sensor(0x2b, 0x06);
+    write_cmos_sensor(0x02, 0x57);
+    write_cmos_sensor(0x22, 0x06);
+    write_cmos_sensor(0x26, 0x08);
+    write_cmos_sensor(0x29, 0x06);
+    write_cmos_sensor(0x2b, 0x08);
     write_cmos_sensor(0xfe, 0x01);
     write_cmos_sensor(0x8c, 0x10);
 
@@ -1378,10 +1378,8 @@ static void normal_video_setting(struct subdrv_ctx *ctx, kal_uint16 currefps)
 
 static void hs_video_setting(struct subdrv_ctx *ctx)
 {
-    LOG_INF("E\n");
+	LOG_INF("%s\n", __func__);
     /* System */
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0x3e, 0x01);
     write_cmos_sensor(0xfc, 0x01);
     write_cmos_sensor(0xf4, 0x40);
     write_cmos_sensor(0xf5, 0xe9);
@@ -1409,7 +1407,11 @@ static void hs_video_setting(struct subdrv_ctx *ctx)
     write_cmos_sensor(0xfe, 0x00);
 
     /* Analog & CISCTL */
-    write_cmos_sensor(0xfe, 0x00);
+
+	write_cmos_sensor(0x03, 0x03);
+	write_cmos_sensor(0x04, 0x9c);
+	write_cmos_sensor(0x41, 0x06);
+	write_cmos_sensor(0x42, 0x00);
     write_cmos_sensor(0x05, 0x03);
     write_cmos_sensor(0x06, 0xb4);
     write_cmos_sensor(0x9d, 0x20);
@@ -1421,77 +1423,140 @@ static void hs_video_setting(struct subdrv_ctx *ctx)
     write_cmos_sensor(0x0e, 0xc8);
     write_cmos_sensor(0x0f, 0x0a);
     write_cmos_sensor(0x10, 0x30);
-    write_cmos_sensor(0xd9, 0xf8);
-    write_cmos_sensor(0x21, 0xe0);
-    write_cmos_sensor(0x29, 0x40);
-    write_cmos_sensor(0x44, 0x30);
-    write_cmos_sensor(0x4e, 0x20);
-    write_cmos_sensor(0x8c, 0x20);
-    write_cmos_sensor(0x91, 0x15);
-    write_cmos_sensor(0x92, 0x3a);
-    write_cmos_sensor(0x93, 0x20);
-    write_cmos_sensor(0x95, 0x45);
-    write_cmos_sensor(0x96, 0x35);
-    write_cmos_sensor(0xd5, 0xf0);
-    write_cmos_sensor(0x97, 0x20);
-    write_cmos_sensor(0x1f, 0x19);
-    write_cmos_sensor(0xce, 0x9b);
-    write_cmos_sensor(0xd0, 0xb3);
-    write_cmos_sensor(0xfe, 0x02);
-    write_cmos_sensor(0x14, 0x02);
-    write_cmos_sensor(0x15, 0x00);
-    write_cmos_sensor(0x91, 0x00);
-    write_cmos_sensor(0x92, 0xf0);
-    write_cmos_sensor(0x93, 0x00);
-    write_cmos_sensor(0x94, 0x00);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfc, 0x88);
-    write_cmos_sensor(0xfe, 0x10);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfc, 0x8e);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfc, 0x88);
-    write_cmos_sensor(0xfe, 0x10);
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0xfc, 0x8e);
+	write_cmos_sensor(0x11, 0x02);
+	write_cmos_sensor(0x17, 0x80);
+	write_cmos_sensor(0x19, 0x05);
+	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0x30, 0x03);
+	write_cmos_sensor(0x31, 0x03);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xd9, 0xf8);
+	write_cmos_sensor(0x1b, 0x20);
+	write_cmos_sensor(0x21, 0xe0);
+	write_cmos_sensor(0x28, 0x22);
+	write_cmos_sensor(0x29, 0x40);
+	write_cmos_sensor(0x44, 0x30);
+	write_cmos_sensor(0x4b, 0x10);
+	write_cmos_sensor(0x4e, 0x20);
+	write_cmos_sensor(0x50, 0x11);
+	write_cmos_sensor(0x52, 0x33);
+	write_cmos_sensor(0x53, 0x44);
+	write_cmos_sensor(0x55, 0x10);
+	write_cmos_sensor(0x5b, 0x11);
+	write_cmos_sensor(0xc5, 0x02);
+	write_cmos_sensor(0x8c, 0x20);
+	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0x33, 0x05);
+	write_cmos_sensor(0x32, 0x38);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0x91, 0x15);
+	write_cmos_sensor(0x92, 0x3a);
+	write_cmos_sensor(0x93, 0x20);
+	write_cmos_sensor(0x95, 0x45);
+	write_cmos_sensor(0x96, 0x35);
+	write_cmos_sensor(0xd5, 0xf0);
+	write_cmos_sensor(0x97, 0x20);
+	write_cmos_sensor(0x16, 0x0c);
+	write_cmos_sensor(0x1a, 0x1a);
+	write_cmos_sensor(0x1f, 0x19);
+	write_cmos_sensor(0x20, 0x10);
+	write_cmos_sensor(0x46, 0x83);
+	write_cmos_sensor(0x4a, 0x04);
+	write_cmos_sensor(0x54, 0x02);
+	write_cmos_sensor(0x62, 0x00);
+	write_cmos_sensor(0x72, 0x8f);
+	write_cmos_sensor(0x73, 0x89);
+	write_cmos_sensor(0x7a, 0x05);
+	write_cmos_sensor(0x7d, 0xcc);
+	write_cmos_sensor(0x90, 0x00);
+	write_cmos_sensor(0xce, 0x18);
+	write_cmos_sensor(0xd0, 0xb3);
+	write_cmos_sensor(0xd2, 0x40);
+	write_cmos_sensor(0xe6, 0xe0);
+	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0x12, 0x01);
+	write_cmos_sensor(0x13, 0x01);
+	write_cmos_sensor(0x14, 0x02);
+	write_cmos_sensor(0x15, 0x00);
+	write_cmos_sensor(0x22, 0x7c);
+	write_cmos_sensor(0x91, 0x00);
+	write_cmos_sensor(0x92, 0xf0);
+	write_cmos_sensor(0x93, 0x00);
+	write_cmos_sensor(0x94, 0x00);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfc, 0x88);
+	write_cmos_sensor(0xfe, 0x10);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfc, 0x8e);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfc, 0x88);
+	write_cmos_sensor(0xfe, 0x10);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xfc, 0x8e);
 
+    /* Gain */
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0xb0, 0x6e);
+	write_cmos_sensor(0xb1, 0x01);
+	write_cmos_sensor(0xb2, 0x00);
+	write_cmos_sensor(0xb3, 0x00);
+	write_cmos_sensor(0xb4, 0x00);
+	write_cmos_sensor(0xb6, 0x00);
+    /* ISP */
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x53, 0x00);
+	write_cmos_sensor(0x89, 0x03);
+	write_cmos_sensor(0x60, 0x40);
     /* BLK */
-    write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x49, 0x00);
-    write_cmos_sensor(0x4a, 0x01);
-    write_cmos_sensor(0x4b, 0xf8);
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x42, 0x21);
+	write_cmos_sensor(0x49, 0x00);
+	write_cmos_sensor(0x4a, 0x01);
+	write_cmos_sensor(0x4b, 0xf8);
+	write_cmos_sensor(0x55, 0x00);
 
     /* Anti_blooming */
-    write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x4e, 0x06);
-    write_cmos_sensor(0x44, 0x02);
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x41, 0x28);
+	write_cmos_sensor(0x4c, 0x00);
+	write_cmos_sensor(0x4d, 0x00);
+	write_cmos_sensor(0x44, 0x02);
+	write_cmos_sensor(0x48, 0x02);
 
     /* Crop */
-    write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x91, 0x00);
-    write_cmos_sensor(0x92, 0x0a);
-    write_cmos_sensor(0x93, 0x00);
-    write_cmos_sensor(0x94, 0x0b);
-    write_cmos_sensor(0x95, 0x02);
-    write_cmos_sensor(0x96, 0xd0);
-    write_cmos_sensor(0x97, 0x05);
-    write_cmos_sensor(0x98, 0x00);
-    write_cmos_sensor(0x99, 0x00);
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x91, 0x00);
+	write_cmos_sensor(0x92, 0x0a);
+	write_cmos_sensor(0x93, 0x00);
+	write_cmos_sensor(0x94, 0x0b);
+	write_cmos_sensor(0x95, 0x02);
+	write_cmos_sensor(0x96, 0xd0);
+	write_cmos_sensor(0x97, 0x05);
+	write_cmos_sensor(0x98, 0x00);
+	write_cmos_sensor(0x99, 0x00);
 
     /* MIPI */
-    write_cmos_sensor(0xfe, 0x03);
-    write_cmos_sensor(0x02, 0x58);
-    write_cmos_sensor(0x22, 0x03);
-    write_cmos_sensor(0x26, 0x06);
-    write_cmos_sensor(0x29, 0x03);
-    write_cmos_sensor(0x2b, 0x06);
-    write_cmos_sensor(0xfe, 0x01);
-    write_cmos_sensor(0x8c, 0x10);
+	write_cmos_sensor(0xfe, 0x03);
+	write_cmos_sensor(0x02, 0x58);
+	write_cmos_sensor(0x03, 0xb7);
+	write_cmos_sensor(0x15, 0x14);
+	write_cmos_sensor(0x18, 0x0f);
+	write_cmos_sensor(0x21, 0x22);
+	write_cmos_sensor(0x22, 0x03);
+	write_cmos_sensor(0x23, 0x48);
+	write_cmos_sensor(0x24, 0x12);
+	write_cmos_sensor(0x25, 0x28);
+	write_cmos_sensor(0x26, 0x06);
+	write_cmos_sensor(0x29, 0x03);
+	write_cmos_sensor(0x2a, 0x58);
+	write_cmos_sensor(0x2b, 0x06);
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x8c, 0x10);
 
-    write_cmos_sensor(0xfe, 0x00);
-    write_cmos_sensor(0x3e, 0x91);
+	write_cmos_sensor(0xfe, 0x00);
+	write_cmos_sensor(0x3e, 0x91);
 }
 
 static void slim_video_setting(struct subdrv_ctx *ctx)
@@ -1720,7 +1785,7 @@ static int open(struct subdrv_ctx *ctx)
     ctx->dummy_pixel = 0;
     ctx->dummy_line = 0;
     ctx->ihdr_mode = 0;
-    ctx->test_pattern = KAL_FALSE;
+	ctx->test_pattern = 0;
     ctx->current_fps = imgsensor_info.pre.max_framerate;
 
     return ERROR_NONE;
@@ -2198,19 +2263,26 @@ static kal_uint32 get_default_framerate_by_scenario(struct subdrv_ctx *ctx,
     return ERROR_NONE;
 }
 
-static kal_uint32 set_test_pattern_mode(struct subdrv_ctx *ctx, kal_bool enable)
+static kal_uint32 set_test_pattern_mode(struct subdrv_ctx *ctx, kal_uint32 mode)
 {
-    LOG_INF("enable: %d\n", enable);
+	if (mode != ctx->test_pattern)
+		pr_debug("mode %d -> %d\n", ctx->test_pattern, mode);
+	//1:Solid Color 2:Color bar 5:Black
+	if (mode == 5)
+		write_cmos_sensor(0x8c, 0x11);//Dgain = 0
+	else if (mode) {
+		write_cmos_sensor(0xfe, 0x01);
+		write_cmos_sensor(0x8c, 0x11);
+	}
 
-    write_cmos_sensor(0xfe, 0x01);
-    if (enable)
-        write_cmos_sensor(0x8c, 0x11);
-    else
-        write_cmos_sensor(0x8c, 0x10);
-    write_cmos_sensor(0xfe, 0x00);
-
-    ctx->test_pattern = enable;
-    return ERROR_NONE;
+	if ((ctx->test_pattern) && (mode != ctx->test_pattern)) {
+		if (ctx->test_pattern == 5)
+			write_cmos_sensor(0x8c, 0x11);
+		else if (mode == 0)
+			write_cmos_sensor(0xfe, 0x00);
+	}
+	ctx->test_pattern = mode;
+	return ERROR_NONE;
 }
 
 static kal_uint32 streaming_control(struct subdrv_ctx *ctx, kal_bool enable)
@@ -2249,7 +2321,20 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
      MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data =
          (MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
 
-    switch (feature_id) {
+	switch (feature_id) {
+	case SENSOR_FEATURE_GET_OUTPUT_FORMAT_BY_SCENARIO:
+		switch (*feature_data) {
+		case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
+		case SENSOR_SCENARIO_ID_NORMAL_VIDEO:
+		case SENSOR_SCENARIO_ID_HIGHSPEED_VIDEO:
+		case SENSOR_SCENARIO_ID_SLIM_VIDEO:
+		case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
+			*(feature_data + 1)
+			= (enum ACDK_SENSOR_OUTPUT_DATA_FORMAT_ENUM)
+				imgsensor_info.sensor_output_dataformat;
+			break;
+		}
+	break;
     case SENSOR_FEATURE_GET_ANA_GAIN_TABLE:
         if ((void *)(uintptr_t) (*(feature_data + 1)) == NULL) {
             *(feature_data + 0) =
@@ -2331,7 +2416,7 @@ static int feature_control(struct subdrv_ctx *ctx, MSDK_SENSOR_FEATURE_ENUM feat
             (MUINT32 *)(uintptr_t)(*(feature_data+1)));
         break;
     case SENSOR_FEATURE_SET_TEST_PATTERN:
-        set_test_pattern_mode(ctx, (BOOL)*feature_data);
+		set_test_pattern_mode(ctx, (UINT32)*feature_data);
         break;
     case SENSOR_FEATURE_GET_TEST_PATTERN_CHECKSUM_VALUE:
         //for factory mode auto testing
@@ -2510,6 +2595,17 @@ static struct mtk_mbus_frame_desc_entry frame_desc_cap[] = {
     }
 };
 
+static struct mtk_mbus_frame_desc_entry frame_desc_hs_vid[] = {
+	{
+		.bus.csi2 = {
+			.channel = 0,
+			.data_type = 0x2b,
+			.hsize = 1280,
+			.vsize = 720,
+		},
+	},
+};
+
 static int get_frame_desc(struct subdrv_ctx *ctx,
         int scenario_id, struct mtk_mbus_frame_desc *fd)
 {
@@ -2527,6 +2623,11 @@ static int get_frame_desc(struct subdrv_ctx *ctx,
         fd->num_entries = ARRAY_SIZE(frame_desc_cap);
         memcpy(fd->entry, frame_desc_cap, sizeof(frame_desc_cap));
         break;
+	case SENSOR_SCENARIO_ID_HIGHSPEED_VIDEO:
+		fd->type = MTK_MBUS_FRAME_DESC_TYPE_CSI2;
+		fd->num_entries = ARRAY_SIZE(frame_desc_hs_vid);
+		memcpy(fd->entry, frame_desc_hs_vid, sizeof(frame_desc_hs_vid));
+		break;
     default:
         return -1;
     }
@@ -2574,7 +2675,7 @@ static const struct subdrv_ctx defctx = {
     .autoflicker_en = KAL_FALSE,
     //test pattern mode or not. KAL_FALSE for in test pattern mode,
     //KAL_TRUE for normal output
-    .test_pattern = KAL_FALSE,
+	.test_pattern = 0,
     //current scenario id
     .current_scenario_id = SENSOR_SCENARIO_ID_NORMAL_PREVIEW,
     .ihdr_mode = 0, //sensor need support LE, SE with HDR feature
@@ -2594,11 +2695,30 @@ static int get_csi_param(struct subdrv_ctx *ctx,
     enum SENSOR_SCENARIO_ID_ENUM scenario_id,
     struct mtk_csi_param *csi_param)
 {
-    csi_param->legacy_phy = 0;
-    csi_param->not_fixed_trail_settle = 0;
-    //csi_param->cphy_settle = 0x1b;
-    csi_param->dphy_trail= 76;
-    return 0;
+	csi_param->legacy_phy = 0;
+
+	switch (scenario_id) {
+	case SENSOR_SCENARIO_ID_NORMAL_PREVIEW:
+	case SENSOR_SCENARIO_ID_NORMAL_CAPTURE:
+	case SENSOR_SCENARIO_ID_NORMAL_VIDEO:
+		csi_param->not_fixed_trail_settle = 0;
+		csi_param->dphy_trail = 76;
+		break;
+	case SENSOR_SCENARIO_ID_HIGHSPEED_VIDEO:
+		csi_param->not_fixed_trail_settle = 1;
+		csi_param->dphy_trail = 0x34;
+		csi_param->dphy_data_settle = 0x11;
+		csi_param->dphy_clk_settle = 0x11;
+		//csi_param->dphy_trail = 321;
+		//csi_param->dphy_data_settle = 59;
+		//csi_param->dphy_clk_settle = 59;
+		break;
+	default:
+		//csi_param->dphy_trail = 125;
+		break;
+	}
+
+	return 0;
 }
 
 static struct subdrv_ops ops = {

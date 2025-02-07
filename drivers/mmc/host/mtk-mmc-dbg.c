@@ -483,7 +483,7 @@ void msdc_dump_info(char **buff, unsigned long *size, struct seq_file *m,
 		return;
 
 	msdc_dump_register(buff, size, m, host);
-
+#if 0
 	if (!buff)
 		mdelay(10);
 
@@ -497,7 +497,7 @@ void msdc_dump_info(char **buff, unsigned long *size, struct seq_file *m,
 
 	if (!buff)
 		mdelay(10);
-
+#endif
 	msdc_dump_dbg_register(buff, size, m, host);
 }
 EXPORT_SYMBOL(msdc_dump_info);
@@ -1105,12 +1105,15 @@ int mmc_dbg_register(struct mmc_host *mmc)
 	 * command history dump in procfs.
 	 */
 	mmc_aee_buffer = kzalloc(MMC_AEE_BUFFER_SIZE, GFP_NOFS);
-
+	if (mmc_aee_buffer == NULL)
+		return -ENOMEM;
 	/* Blocktag */
 	ret = mmc_mtk_biolog_init(mmc);
-	if (ret)
+	if (ret) {
+		kfree(mmc_aee_buffer);
+		mmc_aee_buffer = NULL;
 		return ret;
-
+	}
 	spin_lock_init(&cmd_hist_lock);
 
 	/* Install the tracepoints */
@@ -1122,6 +1125,8 @@ int mmc_dbg_register(struct mmc_host *mmc)
 				interests[i].name);
 			/* Unload previously loaded */
 			mmc_dbg_cleanup();
+			kfree(mmc_aee_buffer);
+			mmc_aee_buffer = NULL;
 			return -EINVAL;
 		}
 

@@ -1,0 +1,1 @@
+obj-$(CONFIG_SYLVIA_FEATURE_SENSOR_TEST) := sensor_cmd.o

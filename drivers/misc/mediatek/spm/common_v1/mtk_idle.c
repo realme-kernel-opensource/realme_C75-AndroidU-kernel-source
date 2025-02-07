@@ -6,7 +6,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-
+#include <mtk_idle_event.h> /* trace header */
 //#include <mtk_mcdi_governor.h> /* idle_refcnt_inc/dec */
 
 /* add/remove_cpu_to/from_perfer_schedule_domain */
@@ -132,7 +132,7 @@ static void mtk_idle_init(void)
 			, 0644, &idle_state_fops, NULL);
 }
 
-void __init mtk_cpuidle_framework_init(void)
+void mtk_cpuidle_framework_init(void)
 {
 	mtk_idle_sysfs_entry_create();
 

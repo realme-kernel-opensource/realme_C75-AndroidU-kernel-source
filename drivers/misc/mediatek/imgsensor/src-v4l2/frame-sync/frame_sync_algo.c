@@ -791,6 +791,82 @@ static unsigned int calc_vts_sync_bias(unsigned int idx)
 	return total_bias;
 }
 
+static unsigned int calc_seamless_frame_time_us(const unsigned int idx,
+	const struct fs_seamless_st *p_seamless_info)
+{
+	const unsigned int mode_exp_cnt =
+		fs_inst[idx].prev_hdr_exp.mode_exp_cnt;
+	unsigned int re_exp_us = 0, re_exp_lc = 0;
+	unsigned int hw_init_time_us = 0;
+	unsigned int readout_start_shift_us = 0;
+	unsigned int i = 0;
+	unsigned int ret = 0;
+
+	/* error handling (unexpected case) */
+	if (unlikely(p_seamless_info == NULL)) {
+		LOG_MUST(
+			"ERROR: [%u] ID:%#x(sidx:%u), get p_seamless_info:%p, return 0\n",
+			idx, fs_inst[idx].sensor_id, fs_inst[idx].sensor_idx,
+			p_seamless_info);
+		return 0;
+	}
+
+	/* get basic info */
+	/* check normal or hdr situation (normal: shutter_lc / hdr: hdr_exp) */
+	if (p_seamless_info->seamless_pf_ctrl.shutter_lc != 0)
+		re_exp_lc = p_seamless_info->seamless_pf_ctrl.shutter_lc;
+	else
+		re_exp_lc = p_seamless_info->seamless_pf_ctrl.hdr_exp.exp_lc[0];
+
+	re_exp_us = convert2TotalTime(
+			p_seamless_info->seamless_pf_ctrl.lineTimeInNs,
+			re_exp_lc);
+
+	/* read back some last pf ctrl settings for calculating */
+	if (mode_exp_cnt) {
+		for (i = 1; i < mode_exp_cnt; ++i) {
+			int hdr_idx = hdr_exp_idx_map[mode_exp_cnt][i];
+
+			/* error case (unexpected) */
+			if (unlikely(hdr_idx < 0)) {
+				readout_start_shift_us = 0;
+				LOG_MUST(
+					"ERROR: [%u] ID:%#x(sidx:%u), hdr_exp_idx_map[%u][%u] = %d => return readout_start_shift_us:%u\n",
+					idx, fs_inst[idx].sensor_id, fs_inst[idx].sensor_idx,
+					mode_exp_cnt,
+					i,
+					hdr_idx,
+					readout_start_shift_us);
+
+				return readout_start_shift_us;
+			}
+
+			readout_start_shift_us +=
+				(fs_inst[idx].prev_hdr_exp.exp_lc[hdr_idx]
+				+ (fs_inst[idx].margin_lc / mode_exp_cnt));
+		}
+
+		readout_start_shift_us =
+			convert2TotalTime(fs_inst[idx].lineTimeInNs, readout_start_shift_us);
+	}
+
+	ret = readout_start_shift_us + p_seamless_info->orig_readout_time_us
+		+ hw_init_time_us + re_exp_us;
+
+	LOG_MUST(
+		"[%u] ID:%#x(sidx:%u), seamless_frame_time_us:%u (readout_start_shift_us:%u, orig_readout_time_us:%u, hw_init_time_us:%u, re_exp_us:%u, line_time(ns):(%u => %u)\n",
+		idx, fs_inst[idx].sensor_id, fs_inst[idx].sensor_idx,
+		ret,
+		readout_start_shift_us,
+		p_seamless_info->orig_readout_time_us,
+		hw_init_time_us,
+		re_exp_us,
+		fs_inst[idx].lineTimeInNs,
+		p_seamless_info->seamless_pf_ctrl.lineTimeInNs);
+
+	return ret;
+}
+
 
 static unsigned int calc_seamless_frame_time_us(const unsigned int idx,
 	const struct fs_seamless_st *p_seamless_info)
@@ -1993,7 +2069,6 @@ static long long fs_alg_sa_calc_adjust_diff_slave(
 	unsigned int f_cell_s = get_valid_frame_cell_size(s_idx);
 	long long adjust_diff_s = 0;
 
-
 	adjust_diff_s =
 		(ts_diff_m + p_para_m->delta) -
 		(ts_diff_s + p_para_s->delta);
@@ -2994,6 +3069,74 @@ void fs_alg_set_perframe_st_data(
 #ifndef REDUCE_FS_ALGO_LOG
 	fs_alg_dump_perframe_data(idx);
 #endif // REDUCE_FS_ALGO_LOG
+}
+
+void fs_alg_set_preset_perframe_streaming_st_data(const unsigned int idx,
+	struct fs_streaming_st *p_stream_data,
+	struct fs_perframe_st *p_pf_ctrl_data)
+{
+	/* from streaming st */
+	fs_inst[idx].sensor_id = p_stream_data->sensor_id;
+	fs_inst[idx].sensor_idx = p_stream_data->sensor_idx;
+	fs_inst[idx].tg = p_stream_data->tg;
+	fs_inst[idx].fl_active_delay = p_stream_data->fl_active_delay;
+	fs_inst[idx].def_min_fl_lc = p_stream_data->def_fl_lc;
+	fs_inst[idx].max_fl_lc = p_stream_data->max_fl_lc;
+	fs_inst[idx].def_shutter_lc = p_stream_data->def_shutter_lc;
+
+	/* from perframe st */
+	fs_inst[idx].min_fl_lc = p_pf_ctrl_data->min_fl_lc;
+	fs_inst[idx].shutter_lc = p_pf_ctrl_data->shutter_lc;
+	fs_inst[idx].margin_lc = p_pf_ctrl_data->margin_lc;
+	fs_inst[idx].flicker_en = p_pf_ctrl_data->flicker_en;
+	fs_inst[idx].pclk = p_pf_ctrl_data->pclk;
+	fs_inst[idx].linelength = p_pf_ctrl_data->linelength;
+	fs_inst[idx].lineTimeInNs = p_pf_ctrl_data->lineTimeInNs;
+
+	fs_inst[idx].prev_readout_min_fl_lc = fs_inst[idx].readout_min_fl_lc;
+	fs_inst[idx].readout_min_fl_lc = 0;
+
+	fs_inst[idx].req_id = p_pf_ctrl_data->req_id;
+
+	/* for first run, assume the hdr exp not be changed */
+	p_stream_data->hdr_exp = p_pf_ctrl_data->hdr_exp;
+	fs_inst[idx].hdr_exp = p_pf_ctrl_data->hdr_exp;
+
+	/* hdr exp settings, overwrite shutter_lc value (equivalent shutter) */
+	fs_alg_set_hdr_exp_st_data(idx,
+		&p_stream_data->def_shutter_lc, &p_stream_data->hdr_exp);
+
+
+	/* check if get invalid data */
+	if (fs_inst[idx].fl_active_delay < 2
+		|| fs_inst[idx].fl_active_delay > 3) {
+
+		LOG_MUST(
+			"ERROR: [%u] ID:%#x(sidx:%u), get non valid frame_time_delay_frame:%u (must be 2 or 3), plz check sensor driver for getting correct value\n",
+			idx,
+			fs_inst[idx].sensor_id,
+			fs_inst[idx].sensor_idx,
+			fs_inst[idx].fl_active_delay);
+	}
+
+	if (fs_inst[idx].margin_lc == 0) {
+		LOG_MUST(
+			"WARNING: [%u] ID:%#x(sidx:%u), get non valid margin_lc:%u, plz check sensor driver for getting correct value\n",
+			idx,
+			fs_inst[idx].sensor_id,
+			fs_inst[idx].sensor_idx,
+			fs_inst[idx].margin_lc);
+	}
+
+
+	fs_alg_dump_fs_inst_data(idx);
+}
+
+
+void fs_alg_set_debug_info_sof_cnt(const unsigned int idx,
+	const unsigned int sof_cnt)
+{
+	fs_inst[idx].sof_cnt = sof_cnt;
 }
 
 

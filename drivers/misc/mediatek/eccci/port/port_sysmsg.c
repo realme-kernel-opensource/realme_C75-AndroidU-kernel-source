@@ -4,6 +4,7 @@
  */
 #include <linux/device.h>
 #include <linux/wait.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/power_supply.h>
 #include <linux/sched/clock.h> /* local_clock() */
@@ -11,7 +12,6 @@
 #include <linux/kernel.h>
 
 #include "ccci_auxadc.h"
-
 #include "ccci_config.h"
 #include "ccci_common_config.h"
 #include "ccci_core.h"
@@ -30,7 +30,6 @@ struct md_rf_notify_struct {
 
 #define MD_RF_NOTIFY(bit, func, name) \
 extern void func(unsigned int para0, unsigned int para1);
-
 #include "mdrf_notify_list.h"
 
 #undef MD_RF_NOTIFY
@@ -205,7 +204,7 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 	struct ccci_header *ccci_h = (struct ccci_header *)skb->data;
 	int md_id = port->md_id;
 	unsigned long rem_nsec;
-	u64 ts_nsec, ref;
+	u64 ts_nsec, ref, cost;
 
 	CCCI_NORMAL_LOG(md_id, SYS, "system message (%x %x %x %x)\n",
 		ccci_h->data[0], ccci_h->data[1],
@@ -247,16 +246,23 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 		/* Fall through */
 	case MD_SW_MD1_TX_POWER_REQ:
 		/* Fall through */
-	case MD_DISPLAY_DYNAMIC_MIPI:
-		/* Fall through */
 	case MD_NR_BAND_ACTIVATE_INFO:
 		fallthrough;
 	case LWA_CONTROL_MSG:
-		exec_ccci_sys_call_back(md_id, ccci_h->data[1],
-			ccci_h->reserved);
+		if (ccci_h->data[1] == MD_DISPLAY_DYNAMIC_MIPI) {
+			mtk_disp_mipi_clk_change(md_id,ccci_h->reserved);
+		} else {
+			exec_ccci_sys_call_back(md_id, ccci_h->data[1],
+				ccci_h->reserved);
+		}
 		break;
 	case MD_GET_BATTERY_INFO:
 		sys_msg_send_battery(port);
+		break;
+	case MD_DISPLAY_DYNAMIC_MIPI:
+#if IS_ENABLED(CONFIG_DRM_MEDIATEK)
+		mtk_disp_mipi_clk_change(md_id, ccci_h->reserved);
+#endif
 		break;
 	case MD_RF_HOPPING_NOTIFY:
 		sys_msg_MD_RF_Notify(md_id, ccci_h->reserved, ccci_h->data[0]);
@@ -264,8 +270,9 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 	};
 	ccci_free_skb(skb);
 	ts_nsec = sched_clock();
-	CCCI_HISTORY_LOG(md_id, SYS, "cost: %lu us\n",
-			(unsigned long)((ts_nsec - ref) / 1000));
+	cost = ts_nsec - ref;
+	div_u64(cost, 1000);
+	CCCI_HISTORY_LOG(md_id, SYS, "cost: %llu us\n", cost);
 }
 
 static int port_sys_init(struct port_t *port)

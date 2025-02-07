@@ -6,6 +6,10 @@
 #ifndef __MTK_CAMERA_V4l2_CONTROLS_H
 #define __MTK_CAMERA_V4l2_CONTROLS_H
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
 #include <linux/videodev2.h>
 #include <linux/v4l2-controls.h>
 
@@ -389,7 +393,9 @@ struct mtk_cam_pde_info {
 #define V4L2_CID_UPDATE_SOF_CNT \
 	(V4L2_CID_USER_MTK_SENINF_BASE + 7)
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 #define V4L2_CID_GET_CSI2_IRQ_STATUS \
 	(V4L2_CID_USER_MTK_SENINF_BASE + 8)
+#endif
 
 #endif /* __MTK_CAMERA_V4l2_CONTROLS_H */

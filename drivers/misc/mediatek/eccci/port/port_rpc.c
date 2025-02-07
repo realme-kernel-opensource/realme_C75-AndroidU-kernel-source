@@ -71,7 +71,17 @@ static struct gpio_item gpio_mapping_table[] = {
 
 static int get_md_gpio_val(unsigned int num)
 {
-	return gpio_get_value(num);
+    //#ifdef OPLUS_FEATURE_THREESTATE_GPIO
+    //NETWORK.RF, 2024/07/16, Add for tristate gpio
+    if(is_project(24700) || is_project(24701) || is_project(24702) || is_project(24709))
+    {
+        return gpio_get_tristate_input(num);
+    }
+    else
+    {
+        return gpio_get_value(num);
+    }
+    //#endif OPLUS_FEATURE_THREESTATE_GPIO
 }
 
 static int get_md_adc_val(__attribute__((unused))unsigned int num)
@@ -1341,7 +1351,7 @@ static int port_rpc_dev_mmap(struct file *fp, struct vm_area_struct *vma)
 			amms_smem->size, vma->vm_end - vma->vm_start);
 	if ((vma->vm_end - vma->vm_start) != amms_smem->size) {
 		CCCI_ERROR_LOG(md_id, RPC,
-			"smem size error:%s,vm_start=0x%llx,vm_end=0x%llx,smem_size=0x%x\n",
+			"smem size error:%s,vm_start=0x%lx,vm_end=0x%lx,smem_size=0x%x\n",
 			port->name, vma->vm_start, vma->vm_end, amms_smem->size);
 		return -EINVAL;
 	}
@@ -1449,6 +1459,7 @@ int port_rpc_recv_match(struct port_t *port, struct sk_buff *skb)
 		case IPC_RPC_QUERY_AP_SYS_PROPERTY:
 		case IPC_RPC_SAR_TABLE_IDX_QUERY_OP:
 		case IPC_RPC_AMMS_DRDI_CONTROL:
+		case IPC_RPC_SAVE_MD_CAPID:
 			is_userspace_msg = 1;
 			break;
 		default:

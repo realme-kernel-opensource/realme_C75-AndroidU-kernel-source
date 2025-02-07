@@ -20,7 +20,7 @@
 #include <drm/mediatek_drm.h>
 #include <drm/drm_modes.h>
 
-/* move to Platform dependent part? */
+/* Move to Platform dependent part? */
 #define TOTAL_OVL_LAYER_NUM (4 + 3 + 2 + 3)
 
 #define PRIMARY_SESSION_INPUT_LAYER_COUNT (12) /* phy(4+2) + ext(3+3) */
@@ -45,7 +45,7 @@
 /* bpp x uint weight = 2 x 100 */
 #define HRT_AEE_WEIGHT 200
 #define HRT_ROUND_CORNER_WEIGHT 200
-
+#define HRT_PAPER_MODE_WEIGHT 200
 #define HRT_GET_FIRST_SET_BIT(n) (((n) - ((n) & ((n) - 1))))
 
 #define DISP_MML_CAPS_MASK                                                                         \
@@ -123,6 +123,7 @@ struct hrt_sort_entry {
 	struct drm_mtk_layer_config *layer_info;
 	int key;
 	int overlap_w;
+	int idx;
 };
 
 struct layering_rule_info_t {
@@ -160,6 +161,7 @@ struct layering_rule_ops {
 		struct drm_device *dev,
 		struct drm_mtk_layering_info *disp_info);
 	bool (*rollback_all_to_GPU_for_idle)(struct drm_device *dev);
+	bool (*rollback_to_new_hrt_for_paper_mode)(struct drm_device *dev, unsigned int hrt_idx);
 	/* for fbdc */
 	void (*fbdc_pre_calculate)(struct drm_mtk_layering_info *disp_info);
 	void (*fbdc_adjust_layout)(struct drm_mtk_layering_info *disp_info,

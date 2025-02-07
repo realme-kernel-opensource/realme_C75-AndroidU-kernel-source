@@ -630,9 +630,18 @@ struct msdc_host {
 	u32 timeout_ns;		/* data timeout ns */
 	u32 timeout_clks;	/* data timeout clks */
 
+	int pins_state; /* pins state */
+#define PINS_DEFAULT 0
+#define PINS_UHS 1
+#define PINS_PULLDOWN 2
+
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_default;
 	struct pinctrl_state *pins_uhs;
+	struct pinctrl_state *pins_evt_on;
+	struct pinctrl_state *pins_evt_off;
+	struct pinctrl_state *pins_pull_down;
+
 	struct delayed_work req_timeout;
 	int irq;		/* host interrupt */
 	int eint_irq;	        /* device interrupt */
@@ -687,6 +696,8 @@ struct msdc_host {
 	bool qos_enable;
 	struct icc_path *bw_path;
 	unsigned int peak_bw;
+	u32 filter_enable;/*explorer not support cmd52*/
+	u32 explorer_support;/*explorer support or not*/
 };
 
 /*--------------------------------------------------------------------------*/

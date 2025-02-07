@@ -16,9 +16,6 @@
 #include <mtk_sleep.h>
 
 static bool spm_drv_init;
-#if IS_ENABLED(CONFIG_MTK_ECCCI_DRIVER)
-extern void ccci_set_spm_mdsrc_cb(void (*md_clock_src_cb)(u8 set));
-#endif
 
 bool mtk_spm_drv_ready(void)
 {
@@ -28,7 +25,7 @@ bool mtk_spm_drv_ready(void)
 static int __init mtk_sleep_init(void)
 {
 	int ret = -1;
-
+	mtk_cpuidle_framework_init();
 	mtk_idle_cond_check_init();
 	spm_resource_console_init();
 #if !IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
@@ -40,7 +37,13 @@ static int __init mtk_sleep_init(void)
 	spm_drv_init = !ret;
 #if IS_ENABLED(CONFIG_MTK_ECCCI_DRIVER)
 	ccci_set_spm_mdsrc_cb(&spm_ap_mdsrc_req);
+	ccci_set_spm_md_sleep_cb(&spm_is_md1_sleep);
 #endif
+
+#if IS_ENABLED(CONFIG_MTK_MDPM_LEGACY_V1)
+	mdpm_register_md_status_cb(&spm_vcorefs_get_MD_status);
+#endif
+	register_spm_resource_req_func(&spm_resource_req);
 	return 0;
 }
 

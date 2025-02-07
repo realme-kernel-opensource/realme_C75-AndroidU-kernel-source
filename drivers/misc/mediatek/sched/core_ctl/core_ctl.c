@@ -26,6 +26,10 @@
 #include <sched_sys_common.h>
 #include <thermal_interface.h>
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
+#include <../kernel/oplus_cpu/sched/sched_assist/sa_pipeline.h>
+#endif
+
 #define TAG "core_ctl"
 
 struct ppm_table {
@@ -178,6 +182,11 @@ MODULE_PARM_DESC(policy_enable, "echo cpu pause policy if needed");
 static unsigned int apply_limits(const struct cluster_data *cluster,
 				 unsigned int need_cpus)
 {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
+	if (cluster->boost && oplus_is_pipeline_scene())
+		return cluster->num_cpus;
+#endif
+
 	return min(max(cluster->min_cpus, need_cpus), cluster->max_cpus);
 }
 
@@ -422,6 +431,10 @@ int core_ctl_set_max_cpus(unsigned int cid, unsigned int max)
 		return -EINVAL;
 
 	cluster = &cluster_state[cid];
+
+	core_ctl_debug("%s: cluster %u, set max: %u",
+		TAG, cid, max);
+
 	set_max_cpus(cluster, max);
 	return 0;
 }
@@ -521,7 +534,7 @@ int core_ctl_set_boost(bool boost)
 			apply_demand(cluster);
 	}
 
-	core_ctl_debug("%s: boost=%d ret=%d ", boost, ret);
+	core_ctl_debug("%s: boost=%d ret=%d ", TAG, boost, ret);
 	return ret;
 }
 EXPORT_SYMBOL(core_ctl_set_boost);
@@ -600,6 +613,9 @@ int core_ctl_force_pause_cpu(unsigned int cpu, bool is_pause)
 	cluster = c->cluster;
 
 	mutex_lock(&core_ctl_force_lock);
+
+	core_ctl_debug("%s: cpu: %d, is_pause: %d",
+		TAG, cpu, is_pause);
 
 	if (is_pause)
 		ret = sched_pause_cpu(cpu);
@@ -1718,7 +1734,7 @@ static int ppm_data_init(struct cluster_data *cluster)
 	policy = cpufreq_cpu_get(first_cpu);
 	if (!policy) {
 		pr_info("%s: cpufreq policy %d is not found for cpu#%d",
-				TAG, first_cpu);
+				TAG, first_cpu, first_cpu);
 		return -ENOMEM;
 	}
 
@@ -1833,6 +1849,10 @@ static int __init core_ctl_init(void)
 		}
 	}
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
+	oplus_core_ctl_set_boost = core_ctl_set_boost;
+#endif
+
 	initialized = true;
 	return 0;
 
@@ -1853,7 +1873,7 @@ static void __exit core_ctl_exit(void)
 	tracepoint_synchronize_unregister();
 }
 
-module_init(core_ctl_init);
+late_initcall_sync(core_ctl_init);
 module_exit(core_ctl_exit);
 
 MODULE_LICENSE("GPL");

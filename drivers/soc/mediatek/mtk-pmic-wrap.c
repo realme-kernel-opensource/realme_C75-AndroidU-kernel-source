@@ -1546,7 +1546,7 @@ static int pwrap_wait_for_state(struct pmic_wrapper *wrp,
 {
 	unsigned long timeout;
 
-	timeout = jiffies + usecs_to_jiffies(10000);
+	timeout = jiffies + usecs_to_jiffies(100000);
 
 	do {
 		if (time_after(jiffies, timeout)) {
@@ -1733,7 +1733,7 @@ static int pwrap_reset_spislave(struct pmic_wrapper *wrp)
  */
 static int pwrap_init_sidly(struct pmic_wrapper *wrp)
 {
-	u32 rdata;
+	u32 rdata = 0;
 	u32 i;
 	u32 pass = 0;
 	signed char dly[16] = {
@@ -1764,7 +1764,7 @@ static int pwrap_init_sidly(struct pmic_wrapper *wrp)
 static int pwrap_init_dual_io(struct pmic_wrapper *wrp)
 {
 	int ret;
-	u32 rdata;
+	u32 rdata = 0;
 
 	/* Enable dual IO mode */
 	pwrap_write(wrp, wrp->slave->dew_regs[PWRAP_DEW_DIO_EN], 1);
@@ -1867,7 +1867,7 @@ static bool pwrap_is_cipher_ready(struct pmic_wrapper *wrp)
 
 static bool pwrap_is_pmic_cipher_ready(struct pmic_wrapper *wrp)
 {
-	u32 rdata;
+	u32 rdata = 0;
 	int ret;
 
 	ret = pwrap_read(wrp, wrp->slave->dew_regs[PWRAP_DEW_CIPHER_RDY],
@@ -2688,12 +2688,16 @@ static int pwrap_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (!HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB))
+	if (!HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB)) {
+		if (HAS_CAP(wrp->master->caps, PWRAP_CAP_ARB_V2))
+			rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
+							PWRAP_STATE_INIT_DONE0_V2;
+		else
+			rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
+							PWRAP_STATE_INIT_DONE0;
+	} else
 		rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
-				    PWRAP_STATE_INIT_DONE0;
-	else
-		rdata = pwrap_readl(wrp, PWRAP_WACS2_RDATA) &
-				    PWRAP_STATE_INIT_DONE1;
+						PWRAP_STATE_INIT_DONE1;
 	if (!rdata) {
 		dev_notice(wrp->dev, "initialization isn't finished\n");
 		ret = -ENODEV;
